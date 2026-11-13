@@ -9,10 +9,12 @@
 
 const MODEL = '@cf/google/gemma-4-26b-a4b-it';
 
-// 이 주소에서 연 웹사이트만 Worker를 쓸 수 있다. GitHub Pages 주소로 바꿔 주세요. (끝에 / 없이)
+// 이 주소에서 연 웹사이트만 Worker를 쓸 수 있다. (끝에 / 없이)
 const ALLOWED_ORIGINS = [
-  'https://dhgusrms.github.io',
+  'https://ai-sales-helper.pages.dev',
 ];
+// Cloudflare Pages의 미리보기 주소(예: https://abc123.ai-sales-helper.pages.dev)도 허용한다.
+const PREVIEW_ORIGIN = /^https:\/\/[a-z0-9-]+\.ai-sales-helper\.pages\.dev$/;
 // 내 컴퓨터에서 테스트할 때(localhost)도 허용한다.
 const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
@@ -25,7 +27,7 @@ const FORMAT = 'object';
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';
-    const allowed = ALLOWED_ORIGINS.includes(origin) || LOCAL_ORIGIN.test(origin);
+    const allowed = ALLOWED_ORIGINS.includes(origin) || PREVIEW_ORIGIN.test(origin) || LOCAL_ORIGIN.test(origin);
     const cors = {
       'Access-Control-Allow-Origin': allowed ? origin : 'null',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',

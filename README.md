@@ -28,11 +28,11 @@ API 키 없이 내 컴퓨터에서 작은 Qwen 모델로 분석을 시험해 볼
 
 기본 모델은 `qwen3:8b`입니다 (분석 1회 약 2분). 더 빠르게 시험해 보고 싶으면 `ollama pull qwen3:4b`(약 2.5GB)로 받은 뒤 AI 설정의 모델 이름을 `qwen3:4b`로 바꾸세요 (약 1분). 다만 4b는 경쟁상품 리뷰를 빠뜨리는 등 분석 품질이 낮습니다.
 
-## 배포하기 (GitHub Pages + Cloudflare 무료 AI)
+## 배포하기 (GitHub + Cloudflare Pages + Cloudflare 무료 AI)
 
 다른 사람도 인터넷 주소로 쓸 수 있게 올리는 방법입니다. 비용은 들지 않습니다.
 
-- **화면(웹사이트)**: GitHub Pages가 이 폴더의 파일을 그대로 보여 줍니다.
+- **화면(웹사이트)**: Cloudflare Pages가 GitHub 저장소의 파일을 그대로 보여 줍니다. 주소: https://ai-sales-helper.pages.dev
 - **AI**: `worker/worker.js`를 Cloudflare Worker로 올리면, 방문자가 API 키 없이 Cloudflare 무료 AI(`@cf/google/gemma-4-26b-a4b-it`)로 분석할 수 있습니다.
   - 무료 한도는 하루 10,000 뉴런입니다. 상품 분석 1회에 약 50뉴런, 약 20~30초가 걸려 하루 약 200회(판매 콘텐츠까지 만들면 그보다 적게) 쓸 수 있습니다 (2026-11-13 실측). 모든 방문자가 함께 나눠 씁니다.
   - 매일 한국 시간 오전 9시에 다시 채워지며, 다 쓰면 요금 없이 "오늘 사용량을 모두 썼다"는 안내만 나옵니다.
@@ -41,18 +41,19 @@ API 키 없이 내 컴퓨터에서 작은 Qwen 모델로 분석을 시험해 볼
 
 ### 1. Cloudflare Worker 만들기
 1. Cloudflare 대시보드 → **Workers & Pages** → **Create** → Worker를 만들고 이름을 정합니다 (예: `sellhelper-ai`).
-2. **Edit code**에서 기본 코드를 지우고 `worker/worker.js` 내용을 붙여 넣습니다. `ALLOWED_ORIGINS`의 주소가 내 GitHub Pages 주소(`https://아이디.github.io`)인지 확인한 뒤 **Deploy**합니다.
+2. **Edit code**에서 기본 코드를 지우고 `worker/worker.js` 내용을 붙여 넣습니다. `ALLOWED_ORIGINS`의 주소가 내 사이트 주소인지 확인한 뒤 **Deploy**합니다.
 3. Worker의 **Settings → Bindings**에서 **Workers AI** 바인딩을 추가하고 변수 이름을 `AI`로 정합니다.
-4. Worker 주소(`https://sellhelper-ai.○○.workers.dev`)를 브라우저로 열어 "Worker가 동작 중입니다"가 보이면 성공입니다.
+4. Worker 주소를 브라우저로 열어 "Worker가 동작 중입니다"가 보이면 성공입니다.
 
 ### 2. 사이트에 Worker 주소 넣기
 `js/config.js`의 `WORKER_URL`에 위 Worker 주소를 넣습니다. 이 주소는 비밀이 아니라 공개되어도 괜찮습니다.
 (API 키는 절대 코드나 GitHub에 넣지 마세요.)
 
-### 3. GitHub Pages로 올리기
-1. GitHub에서 새 저장소(Public)를 만들고 이 폴더의 파일을 올립니다. `backup/`, `docs/` 폴더는 `.gitignore`로 제외됩니다.
-2. 저장소 **Settings → Pages**에서 Branch를 `main`, 폴더를 `/ (root)`로 정하고 저장합니다.
-3. 몇 분 뒤 `https://내아이디.github.io/저장소이름/` 주소로 접속합니다.
+### 3. GitHub에 올리고 Cloudflare Pages로 공개하기
+1. GitHub 저장소(`ai-sales-helper`, Public)에 이 폴더를 올립니다. `backup/`, `docs/` 폴더는 `.gitignore`로 제외됩니다.
+2. Cloudflare 대시보드 → **Workers & Pages** → Pages → **Connect to Git**에서 이 저장소만 선택해 연결합니다. 빌드 명령은 비우고, 출력 폴더는 `/`로 둡니다.
+3. 사이트 주소: **https://ai-sales-helper.pages.dev**
+4. 이후 GitHub에 올리면(`git push`) 1~2분 뒤 사이트가 자동으로 업데이트됩니다.
 
 ## 기능
 
