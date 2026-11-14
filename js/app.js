@@ -534,10 +534,8 @@
     $('#cloudSettings').hidden = v !== 'cloud';
     $('#claudeSettings').hidden = v !== 'claude';
   }
-  function updateSettingsButton() {
-    const p = AI.getProvider();
-    $('#openSettings').textContent = p === 'qwen' ? 'AI 설정 · Qwen' : p === 'cloud' ? 'AI 설정 · 무료 AI' : 'AI 설정';
-  }
+  // 상단의 'AI 설정' 버튼은 2026-11-14에 뺐다 (기본은 무료 AI). 호출하는 곳이 남아 있어 함수는 둔다.
+  function updateSettingsButton() {}
   $('#cloudOption').hidden = !AI.hasCloud();
   function openSettings() {
     $(`input[name="provider"][value="${AI.getProvider()}"]`).checked = true;
@@ -547,7 +545,8 @@
     showProviderFields();
     dlg.showModal();
   }
-  $('#openSettings').addEventListener('click', openSettings);
+  // 개발·테스트용: 주소 끝에 #settings 를 붙여 열면 AI 설정 창이 열린다 (Claude·Qwen으로 바꿀 때)
+  if (location.hash === '#settings') openSettings();
   $$('input[name="provider"]').forEach(r => r.addEventListener('change', showProviderFields));
   $('#settingsForm').addEventListener('submit', e => {
     if (e.submitter?.value !== 'save') return;
