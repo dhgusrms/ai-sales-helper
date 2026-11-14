@@ -1066,7 +1066,7 @@
           <div class="sub">${ed(`content.product_names.${i}.reason`, x.reason)}</div></li>`).join('')}</ul>`)}
       ${box('검색 키워드', `<p class="keywords">${c.keywords.map((k, i) => ed(`content.keywords.${i}`, k)).join('<span class="sep">, </span>')}</p>
           <p class="muted small">AI가 제안한 후보입니다. 실제 검색량은 확인되지 않았으니 네이버 데이터랩 등에서 직접 확인해 주세요.</p>`)}
-      ${box('상세페이지 구성안 (위에서 아래 순서)', `<ol class="detail-list">${c.detail_page.map((x, i) => `<li><b>${esc(x.section)}</b>
+      ${box('상세페이지 구성안 (위에서 아래 순서)', `<ol class="detail-list">${c.detail_page.map((x, i) => `<li><b>${esc(x.section)}</b>${x.title ? ` <span class="muted">· 제목: ${esc(x.title)}</span>` : ''}
           <div>${ed(`content.detail_page.${i}.content`, x.content)}</div>
           <div class="sub">근거: ${ed(`content.detail_page.${i}.evidence`, x.evidence)}</div></li>`).join('')}</ol>`)}
       ${box('홍보문구', `<ul class="list-plain">${c.promo_copies.map((x, i) => `<li><span class="pill">${esc(x.channel)}</span>
@@ -1121,6 +1121,13 @@
 
   function renderDetailPanel() {
     const m = current.ai.detailPage;
+    const type = DetailPage.TYPES[m.type] ? m.type : 'basic';
+    $('#dpTypes').innerHTML = DetailPage.TYPE_KEYS.map(id =>
+      `<button type="button" class="dp-theme dp-type ${type === id ? 'is-active' : ''}" data-type="${id}">${DetailPage.TYPES[id].label}</button>`).join('');
+    const guessed = DetailPage.guessType(current.product, current.ai.content);
+    $('#dpTypeNote').textContent = type === guessed
+      ? `상품 종류에 맞춰 '${DetailPage.TYPES[type].label}' 양식을 골랐어요. 양식마다 순서·배치·제목이 달라요.`
+      : '양식마다 순서·배치·제목이 달라요. 직접 고친 제목은 그대로 남아요.';
     $('#dpThemes').innerHTML = Object.entries(DetailPage.THEMES).map(([id, t]) =>
       `<button type="button" class="dp-theme ${m.theme === id ? 'is-active' : ''}" data-theme="${id}"><i style="background:${t.main}"></i>${t.label}</button>`).join('');
     $('#dpSlots').innerHTML = DetailPage.SLOT_LABELS.map((label, i) => {
@@ -1137,6 +1144,14 @@
     $('#dpPreview').innerHTML = DetailPage.render(current.ai.detailPage, detailPhotos);
   }
 
+  $('#dpTypes').addEventListener('click', e => {
+    const id = e.target.closest('[data-type]')?.dataset.type;
+    if (!id) return;
+    DetailPage.applyType(current.ai.detailPage, id);
+    current.saved = Store.save(current);
+    renderDetailPanel();
+    renderDetailPreview();
+  });
   $('#dpThemes').addEventListener('click', e => {
     const id = e.target.closest('[data-theme]')?.dataset.theme;
     if (!id) return;

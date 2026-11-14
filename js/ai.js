@@ -532,6 +532,8 @@ ${each.join('\n')}
   /* ---------- 판매 콘텐츠 (상품명·키워드·상세페이지 구성안·홍보문구) ---------- */
   // 분석과 따로 요청한다. 사용자가 확인·수정한 분석 결과를 바탕으로 만든다.
   const DETAIL_SECTIONS = ['대표 사진과 핵심 장점', '구매자의 고민', '제품 강점', '근거·규격·인증', '사용 안내·주의사항'];
+  // 상세페이지 양식(js/detail.js의 TYPES)과 같은 이름
+  const PAGE_TYPES = ['food', 'beauty', 'fashion', 'digital', 'handmade', 'living', 'basic'];
   const CONTENT_SCHEMA = {
     type: 'object',
     properties: {
@@ -542,14 +544,15 @@ ${each.join('\n')}
       keywords: filled(strList),
       detail_page: filled({
         type: 'array',
-        items: { type: 'object', properties: { section: str, content: str, evidence: str }, required: ['section', 'content', 'evidence'], additionalProperties: false },
+        items: { type: 'object', properties: { section: str, title: str, content: str, evidence: str }, required: ['section', 'title', 'content', 'evidence'], additionalProperties: false },
       }),
+      page_type: { type: 'string', enum: PAGE_TYPES },
       promo_copies: filled({
         type: 'array',
         items: { type: 'object', properties: { channel: str, text: str }, required: ['channel', 'text'], additionalProperties: false },
       }),
     },
-    required: ['product_names', 'keywords', 'detail_page', 'promo_copies'],
+    required: ['product_names', 'keywords', 'detail_page', 'page_type', 'promo_copies'],
     additionalProperties: false,
   };
 
@@ -567,8 +570,10 @@ ${each.join('\n')}
 - product_names: 오픈마켓 상품명 후보 3개. 구매자가 검색할 핵심 단어 + 특징 + 구성/규격 순서로, 50자 이내. 브랜드명은 넣지 않습니다. reason에 이렇게 지은 이유 1문장.
 - keywords: 구매자가 검색창에 입력할 만한 검색 키워드 8~10개. 한 단어 또는 짧은 구절. 상품명에 쓴 단어 외에 용도, 대상, 상황(선물 등)도 포함합니다.
 - detail_page: 상세페이지를 위에서 아래로 보여 줄 순서대로 정확히 5개 블록. section은 순서대로 "${DETAIL_SECTIONS.join('", "')}"를 그대로 씁니다.
+  title에는 상세페이지에 크게 보일 그 블록의 제목을 이 상품에 맞춰 15자 안팎으로 씁니다. 예) 수납 트레이의 고민 블록 "책상 위, 늘 어수선하셨죠?", 쿠키의 강점 블록 "매일 아침 굽는 버터 쿠키", 화장품의 사용 안내 블록 "이렇게 바르세요".
   content에는 그 블록에 실제로 넣을 문구 2~3문장을 씁니다. evidence에는 그 내용의 근거(예: "인증 정보: KC 인증", "경쟁상품 리뷰의 '냄새가 심하다' 불만")를 씁니다.
   구매자의 고민 블록은 경쟁상품 리뷰의 불만에서, 근거·규격·인증 블록은 입력된 재질·크기·구성품·인증에서만 가져옵니다. 근거가 없으면 evidence에 "확인 필요"라고 씁니다.
+- page_type: 상세페이지 양식. 상품 종류에 맞게 food(식품), beauty(뷰티·화장품), fashion(패션·잡화), digital(디지털·가전), handmade(핸드메이드·선물), living(생활·인테리어), basic(그 밖) 중 하나를 씁니다.
 - promo_copies: 정확히 3개. channel은 순서대로 "인스타그램 게시글", "검색광고 문구", "한 줄 카피"를 씁니다.
   인스타그램 게시글은 2~3문장과 해시태그 3~5개, 검색광고 문구는 제목 15자 이내와 설명 45자 이내를 " / "로 구분, 한 줄 카피는 20자 안팎의 한 문장입니다.
 
@@ -649,7 +654,8 @@ ${lines('종합 의견', [ai.summary])}${lines('장점', ai.strengths)}${lines('
     const out = {
       product_names: arr(r?.product_names).map(x => ({ name: s(x?.name), reason: s(x?.reason) })).filter(x => x.name),
       keywords: arr(r?.keywords).map(s).map(k => k.replace(/^#/, '').trim()).filter(Boolean),
-      detail_page: arr(r?.detail_page).map(x => ({ section: s(x?.section), content: s(x?.content), evidence: s(x?.evidence) || '확인 필요' })).filter(x => x.content),
+      detail_page: arr(r?.detail_page).map(x => ({ section: s(x?.section), title: s(x?.title).trim().slice(0, 40), content: s(x?.content), evidence: s(x?.evidence) || '확인 필요' })).filter(x => x.content),
+      page_type: PAGE_TYPES.includes(r?.page_type) ? r.page_type : '',
       promo_copies: arr(r?.promo_copies).map(x => ({ channel: s(x?.channel), text: s(x?.text) })).filter(x => x.text),
       model,
       notices: [],
@@ -663,7 +669,7 @@ ${lines('종합 의견', [ai.summary])}${lines('장점', ai.strengths)}${lines('
   }
   function riskyWordNotices(out, product) {
     const source = [product.name, product.description, product.material, product.size, product.components, product.certification].join(' ');
-    const texts = [...out.product_names.map(x => x.name), ...out.detail_page.map(x => x.content), ...out.promo_copies.map(x => x.text)];
+    const texts = [...out.product_names.map(x => x.name), ...out.detail_page.map(x => x.title), ...out.detail_page.map(x => x.content), ...out.promo_copies.map(x => x.text)];
     const found = RISKY_WORDS.filter(w => !source.includes(w) && texts.some(t => t.includes(w)));
     return found.length
       ? [`과장되거나 광고 규정상 문제가 될 수 있는 표현이 들어 있습니다: ${found.map(w => `'${w}'`).join(', ')}. 사용 전에 수정해 주세요.`]
