@@ -199,13 +199,13 @@ const AI = (() => {
 [판매 플랫폼 > 카테고리] ${Platforms.path(product) || '입력 안 함'}
 [재질] ${product.material || '입력 안 함'}
 [구성품] ${product.components || '입력 안 함'}
-[인증 정보] ${product.certification || '입력 안 함 (인증을 받았다고 쓰지 마세요)'}
+[인증 정보] ${product.certification ? `${product.certification} - 사용자가 공식 조회로 확인함` : '없음 또는 확인 안 됨 (인증을 받았다고 쓰지 마세요)'}
 [크기] ${product.size || '입력 안 함'}
 [제품 설명]
 ${product.description}
 
 [가격·비용, 1개 기준]
-- 원가: ${won(product.cost)}
+- 원가: ${won(product.cost)}${product.cost === 0 ? ' (사용자가 원가 없음으로 확인함: 직접 만든 상품·보유 재고 등)' : ''}
 - 판매가: ${won(product.price)}
 - 배송비(판매자 부담): ${won(product.shipping)}
 - 포장비: ${won(product.packaging)}
@@ -592,6 +592,55 @@ ${lines('종합 의견', [ai.summary])}${lines('장점', ai.strengths)}${lines('
     return normalizeContent(parsed, model, product);
   }
 
+  /* ---------- 오타·맞춤법 검사 ---------- */
+  // 사용자가 쓴 글에서 명백한 오타와 맞춤법만 찾는다. 문장을 다듬거나 내용을 바꾸지 않는다.
+  const TYPO_SYSTEM = `당신은 한국어 맞춤법 검사기입니다. 온라인 판매자가 상품 등록 화면에 쓴 글에서 오타와 맞춤법 오류만 찾습니다.
+
+지켜야 할 규칙:
+- 명백한 오타(예: "원묵" → "원목"), 맞춤법(예: "되요" → "돼요", "왠만하면" → "웬만하면"), 꼭 필요한 띄어쓰기만 고칩니다.
+- 문장을 더 좋게 다듬거나, 단어를 다른 말로 바꾸거나, 내용을 더하거나 빼지 마세요.
+- 상품명·브랜드명·모델명·영어·숫자·단위·인증번호는 틀린 게 확실하지 않으면 그대로 둡니다.
+- wrong에는 원문에 있는 글자를 한 글자도 바꾸지 말고 그대로 옮겨 씁니다. 고칠 부분이 들어간 짧은 구절(1~4어절)만 씁니다.
+- right에는 wrong을 고친 글을, reason에는 왜 고치는지 한 문장으로 씁니다.
+- field에는 그 글이 있는 칸의 이름(name, description, material, components, certName 중 하나)을 씁니다.
+- 고칠 것이 없으면 items를 빈 배열로 둡니다. 확실하지 않으면 넣지 마세요.`;
+  const TYPO_SCHEMA = {
+    type: 'object',
+    properties: {
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { field: { type: 'string' }, wrong: { type: 'string' }, right: { type: 'string' }, reason: { type: 'string' } },
+          required: ['field', 'wrong', 'right', 'reason'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['items'],
+    additionalProperties: false,
+  };
+  const TYPO_LABELS = { name: '상품명', description: '상품 설명', material: '재질', components: '구성품', certName: '인증 이름' };
+
+  // fields: { name, description, ... } → [{ field, label, wrong, right, reason }]
+  async function proofread(fields, signal) {
+    const filled = Object.entries(fields).filter(([k, v]) => TYPO_LABELS[k] && v && v.trim());
+    if (!filled.length) return [];
+    const text = filled.map(([k, v]) => `[${k}] ${TYPO_LABELS[k]}\n${v}`).join('\n\n');
+    const p = getProvider();
+    const request = p === 'qwen' ? requestQwen : p === 'cloud' ? requestCloud : requestClaude;
+    const { parsed } = await request(TYPO_SYSTEM, `아래 글의 오타와 맞춤법을 검사해 주세요.\n\n${text}`, TYPO_SCHEMA, signal);
+    const s = v => (typeof v === 'string' ? v.trim() : '');
+    const seen = new Set();
+    // AI가 원문에 없는 글을 지어내거나, 고칠 게 없는데 넣은 항목은 버린다
+    return (Array.isArray(parsed?.items) ? parsed.items : [])
+      .map(x => ({ field: s(x?.field), wrong: s(x?.wrong), right: s(x?.right), reason: s(x?.reason) }))
+      .map(x => (fields[x.field]?.includes(x.wrong) ? x : { ...x, field: filled.find(([, v]) => v.includes(x.wrong))?.[0] || '' }))
+      .filter(x => x.field && x.wrong && x.right && x.wrong !== x.right && fields[x.field].includes(x.wrong))
+      .filter(x => { const k = `${x.field}|${x.wrong}`; if (seen.has(k)) return false; seen.add(k); return true; })
+      .map(x => ({ ...x, label: TYPO_LABELS[x.field] }));
+  }
+
   // 표시·광고 관련 규정에서 문제가 되기 쉬운 표현. 입력된 상품 정보에 있는 말은 제외한다.
   const RISKY_WORDS = ['최고', '최상', '1위', '최초', '유일', '완벽', '100%', '무해', '무독성', '부작용 없', '절대', '치료', '예방', '효능'];
   function normalizeContent(r, model, product) {
@@ -627,5 +676,5 @@ ${lines('종합 의견', [ai.summary])}${lines('장점', ai.strengths)}${lines('
   // 사용자가 '취소하고 돌아가기'를 누른 경우
   const cancelled = () => new AIError('cancelled', '분석을 취소했습니다.');
 
-  return { analyze, generateContent, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
+  return { analyze, generateContent, proofread, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
 })();

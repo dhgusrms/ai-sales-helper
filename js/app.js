@@ -4,14 +4,11 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
   const form = $('#productForm');
   const MAX_PHOTOS = 3;
-  const MAX_COMPETITORS = 5;
-  const MAX_DOCS = 3;
-  const MAX_TEXT_CHARS = 200000;
-  const MAX_PDF_BYTES = 10 * 1024 * 1024;
 
   let photos = [];      // { mediaType, data(base64), url }
-  let competitors = []; // { name, price, features, reviews }
-  let docs = [];        // { name, kind: 'text'|'pdf', text | data }
+  // 경쟁상품·자료 입력은 뺐지만, AI 요청 형식과 예전 기록을 위해 빈 목록으로 넘긴다
+  const competitors = [];
+  const docs = [];
   let charts = [];
   let current = null;   // 결과 화면에 표시 중인 분석 기록
   let formRecordId = null; // 현재 입력 폼으로 만든 마지막 기록 (사진·자료가 메모리에 남아 있음)
@@ -64,9 +61,11 @@
       category: Platforms.categoryText(catMain, catSub),
       description: (f.get('description') || '').trim(),
       material: (f.get('material') || '').trim(),
-      components: (f.get('components') || '').trim(),
-      certification: (f.get('certification') || '').trim(),
-      size: (f.get('size') || '').trim(),
+      components: (f.get('components') || '').trim() || '단품', // 비워 두면 단품
+      ...readSize(f),
+      ...readCert(f),
+      costEntered: String(f.get('cost') || '').trim() !== '',
+      feeEntered: String(f.get('feeRate') || '').trim() !== '',
       cost: parseNum(f.get('cost')),
       price: parseNum(f.get('price')),
       shipping: parseNum(f.get('shipping')),
@@ -76,28 +75,204 @@
       targetMargin: f.get('targetMargin') === '' ? 30 : parseNum(f.get('targetMargin')),
       photos,
       docs,
-      competitors: competitors
-        .map(c => ({ name: c.name.trim(), price: parseNum(c.price), features: c.features.trim(), reviews: c.reviews.trim() }))
-        .filter(c => c.name || c.price || c.features || c.reviews),
+      competitors,
     };
   }
 
+  /* ---------- 크기·인증 (숫자 칸과 인증 종류로 입력받아 글로 합친다) ---------- */
+  const SIZE_MAX = { cm: 1000, mm: 10000 };
+  function readSize(f) {
+    const unit = f.get('sizeUnit') === 'mm' ? 'mm' : 'cm';
+    const raw = { sizeW: f.get('sizeW'), sizeD: f.get('sizeD'), sizeH: f.get('sizeH') };
+    const dims = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, String(v || '').trim()]));
+    const parts = [['가로', dims.sizeW], ['세로', dims.sizeD], ['높이', dims.sizeH]].filter(([, v]) => v !== '');
+    const size = parts.length ? `${parts.map(([k, v]) => `${k} ${v}`).join(' × ')}${unit}` : '';
+    return { ...dims, sizeUnit: unit, size };
+  }
+
+  const CERT_TYPES = {
+    kcSafety: { label: 'KC 안전인증', no: '인증번호', needNo: true, site: 'safety' },
+    kcConfirm: { label: 'KC 안전확인', no: '안전확인신고번호', needNo: true, site: 'safety' },
+    kcSupplier: { label: 'KC 공급자적합성확인', needNo: false },
+    radio: { label: '전파인증(방송통신기자재 적합성평가)', no: '적합성평가 번호', needNo: true, site: 'radio' },
+    other: { label: '', no: '번호', needNo: false, needName: true },
+  };
+  const CERT_SITES = {
+    safety: '<a href="https://www.safetykorea.kr" target="_blank" rel="noopener">제품안전정보센터(safetykorea.kr)</a>',
+    radio: '<a href="https://www.rra.go.kr" target="_blank" rel="noopener">국립전파연구원(rra.go.kr)</a>',
+  };
+  function readCert(f) {
+    const certType = CERT_TYPES[f.get('certType')] ? f.get('certType') : '';
+    const certNo = String(f.get('certNo') || '').replace(/\s+/g, '').toUpperCase();
+    const certName = String(f.get('certName') || '').trim();
+    const certVerified = !!f.get('certVerified');
+    const t = CERT_TYPES[certType];
+    // AI와 상세페이지에는 사용자가 조회해 확인한 인증만 넘긴다
+    let certification = '';
+    if (t && certVerified) {
+      if (certType === 'kcSupplier') certification = 'KC 공급자적합성확인 (인증번호가 없는 제도)';
+      else if (certType === 'other') certification = `${certName}${certNo ? ` (번호 ${certNo})` : ''}`;
+      else certification = `${t.label} (${t.no} ${certNo})`;
+    }
+    return { certType, certNo, certName, certVerified, certification };
+  }
+  function updateCertUI() {
+    const type = form.elements.certType.value;
+    const t = CERT_TYPES[type];
+    $('#certNoField').hidden = !t || type === 'kcSupplier';
+    $('#certNameField').hidden = type !== 'other';
+    $('#certCheck').hidden = !t;
+    if (!t) return;
+    $('#certNoField .label').innerHTML = `${t.no || '번호'} ${t.needNo ? '<b>*</b>' : '<small class="muted">(있으면)</small>'}`;
+    const help = {
+      kcSafety: `인증번호를 ${CERT_SITES.safety}에서 조회해, 이 상품(모델)의 인증이 맞는지 확인해 주세요. 한 글자만 틀려도 다른 제품의 번호가 될 수 있어요.`,
+      kcConfirm: `안전확인신고번호를 ${CERT_SITES.safety}에서 조회해, 이 상품(모델)의 신고가 맞는지 확인해 주세요.`,
+      kcSupplier: '공급자적합성확인은 인증번호가 없는 제도예요. 제조·수입업자가 시험해 안전기준에 맞는지 스스로 확인하고, 그 시험 결과(시험성적서)를 보관해야 해요.',
+      radio: `적합성평가 번호(예: R-R-…, R-C-…)를 ${CERT_SITES.radio}에서 조회해 이 상품(모델)의 번호가 맞는지 확인해 주세요.`,
+      other: '인증서나 시험성적서 원본을 보고 이름과 번호를 그대로 옮겨 적어 주세요.',
+    }[type];
+    $('#certHelp').innerHTML = help;
+    $('#certVerifiedText').textContent = type === 'kcSupplier'
+      ? '이 상품이 공급자적합성확인 대상이고, 시험 결과(시험성적서)를 확인했어요'
+      : type === 'other' ? '인증서 원본을 보고 내용이 맞는 것을 확인했어요'
+        : '번호를 공식 사이트에서 조회해 이 상품의 인증이 맞는 것을 확인했어요';
+  }
+  form.elements.certType.addEventListener('change', () => { form.elements.certVerified.checked = false; updateCertUI(); });
+  form.elements.certNo.addEventListener('input', () => { form.elements.certVerified.checked = false; });
+
+  // 저장된 분석을 다시 열 때 크기·인증 칸을 채운다. 예전 기록(글로 적은 크기·인증)은 안내만 보여 준다.
+  function restoreSizeCert(p) {
+    $$('.legacy-hint', form).forEach(el => el.remove());
+    const hint = (box, text) => {
+      const el = document.createElement('p');
+      el.className = 'hint small legacy-hint';
+      el.textContent = text;
+      box.appendChild(el);
+    };
+    if ('sizeW' in p) {
+      for (const k of ['sizeW', 'sizeD', 'sizeH']) form.elements[k].value = p[k] || '';
+      form.elements.sizeUnit.value = p.sizeUnit === 'mm' ? 'mm' : 'cm';
+    } else if (p.size) {
+      hint($('#sizeField'), `예전에 적은 크기: "${p.size}" — 숫자 칸에 다시 입력해 주세요.`);
+    }
+    if ('certType' in p) {
+      form.elements.certType.value = p.certType || '';
+      form.elements.certNo.value = p.certNo || '';
+      form.elements.certName.value = p.certName || '';
+      updateCertUI();
+      form.elements.certVerified.checked = !!p.certVerified;
+    } else {
+      updateCertUI();
+      if (p.certification) hint($('#certField'), `예전에 적은 인증 정보: "${p.certification}" — 인증 종류를 고르고 번호를 조회해 확인해 주세요.`);
+    }
+  }
+
+  /* ---------- 입력 검사 ---------- */
+  const LETTER_RE = /[가-힣A-Za-z]/;
+  const letterCount = t => (t.match(/[가-힣A-Za-z]/g) || []).length;
+  const MIN_PRICE = 100;        // 이보다 싸면 분석하지 않는다 (1원·2원 같은 장난 입력 방지)
+  const CHECK_PRICE = 1000;     // 이보다 싸면 가격이 맞는지 한 번 확인한다
+  const MIN_DESC = 20;
+
+  // 막아야 하는 오류(errors)와, 확인만 받으면 되는 경고(warnings)를 돌려준다.
   function validate(p) {
     const errors = [];
-    const mark = (name, bad) => form.elements[name].classList.toggle('invalid', bad);
-    mark('name', !p.name); if (!p.name) errors.push('상품명');
+    const err = (field, msg) => errors.push({ field, msg });
+
+    if (!p.name) err('name', '상품명을 입력해 주세요.');
+    else if (p.name.length < 2 || !LETTER_RE.test(p.name)) err('name', '상품명은 한글이나 영문을 넣어 2자 이상 써 주세요. 숫자·기호만으로는 안 돼요.');
+
     const catField = p.platform === 'custom' ? 'catCustom' : 'catMain';
-    mark('catMain', false); mark('catCustom', false);
-    mark(catField, !p.catMain); if (!p.catMain) errors.push('카테고리');
-    mark('description', !p.description); if (!p.description) errors.push('제품 설명');
-    mark('cost', p.cost <= 0); if (p.cost <= 0) errors.push('상품 원가');
-    mark('price', p.price <= 0); if (p.price <= 0) errors.push('판매가격');
-    if (errors.length) return `${errors.join(', ')}을(를) 입력해 주세요.`;
-    if (p.feeRate >= 100) { mark('feeRate', true); return '플랫폼 수수료는 100% 미만이어야 합니다.'; }
-    mark('feeRate', false);
-    if (p.targetMargin >= 100) { mark('targetMargin', true); return '목표 마진율은 100% 미만이어야 합니다.'; }
-    mark('targetMargin', false);
-    return '';
+    if (!p.catMain) err(catField, p.platform === 'custom' ? '카테고리를 입력해 주세요.' : '카테고리를 골라 주세요.');
+    else if (p.platform === 'custom' && (p.catMain.length < 2 || !LETTER_RE.test(p.catMain))) err('catCustom', '카테고리는 한글이나 영문으로 써 주세요. 예) 생활용품 > 욕실용품');
+
+    const d = p.description.replace(/\s+/g, '');
+    if (!p.description) err('description', '제품 설명을 입력해 주세요.');
+    else if (p.description.length < MIN_DESC || letterCount(d) < 10) err('description', `제품 설명을 ${MIN_DESC}자 이상, 무엇에 쓰는 상품인지 알 수 있게 써 주세요.`);
+    else if (new Set(d).size < 5) err('description', '같은 글자 반복 말고 상품에 대한 설명을 써 주세요.');
+
+    if (!p.costEntered) err('cost', '원가를 입력해 주세요. 원가가 없으면 0을 입력해 주세요.');
+    if (p.price < MIN_PRICE) err('price', `판매가는 ${MIN_PRICE.toLocaleString('ko-KR')}원 이상이어야 해요.`);
+    if (p.platform === 'custom' && !p.feeEntered) err('feeRate', '수수료를 입력해 주세요. 수수료가 없으면 0을 입력해 주세요.');
+    else if (p.feeRate >= 100) err('feeRate', '수수료는 100% 미만이어야 해요.');
+    if (p.targetMargin >= 100) err('targetMargin', '목표 마진율은 100% 미만이어야 해요.');
+
+    for (const [k, label] of [['sizeW', '가로'], ['sizeD', '세로'], ['sizeH', '높이']]) {
+      if (p[k] === '') continue;
+      const n = Number(p[k]);
+      if (!Number.isFinite(n) || n <= 0) err(k, `${label}는 0보다 큰 숫자로 입력해 주세요.`);
+      else if (n > SIZE_MAX[p.sizeUnit]) err(k, `${label} ${p[k]}${p.sizeUnit}는 너무 커요. 단위(cm/mm)를 확인해 주세요.`);
+    }
+
+    const t = CERT_TYPES[p.certType];
+    if (t) {
+      if (p.certType === 'other' && !p.certName) err('certName', '인증 이름을 입력해 주세요.');
+      if (t.needNo && !p.certNo) err('certNo', `${t.no}를 입력해 주세요.`);
+      else if (p.certNo && !certNoLooksValid(p.certType, p.certNo)) err('certNo', p.certType === 'radio'
+        ? '적합성평가 번호 형식이 아니에요. R-R-…, R-C-…처럼 인증서에 적힌 그대로 입력해 주세요.'
+        : '번호 형식이 아니에요. 인증서에 적힌 영문·숫자·하이픈(-)을 그대로 입력해 주세요.');
+      if (!p.certVerified) err('certVerified', '확인했다면 체크해 주세요. 확인이 어려우면 인증 종류를 \'없음 / 모름\'으로 바꿔 주세요. 확인되지 않은 인증은 판매 페이지에 쓰면 안 돼요.');
+    }
+
+    const warnings = [];
+    if (!errors.length) {
+      const r = Profit.calc(p);
+      if (p.cost === 0) warnings.push('원가가 0원이에요. 직접 만든 상품이나 이미 가진 재고처럼 원가가 없는 게 맞나요?');
+      if (p.price < CHECK_PRICE) warnings.push(`판매가가 ${won(p.price)}이에요. 가격을 맞게 입력했나요?`);
+      if (r.profit < 0) warnings.push(`이 가격이면 1개 팔 때마다 ${won(-r.profit)} 손해예요. 판매가와 비용을 확인해 주세요.`);
+      if (p.shipping > p.price) warnings.push('배송비가 판매가보다 커요.');
+      if (p.packaging > p.price) warnings.push('포장비가 판매가보다 커요.');
+      if (p.platform === 'custom' && p.feeRate === 0) warnings.push('수수료가 0%예요. 판매처 수수료가 정말 없나요?');
+    }
+    return { errors, warnings };
+  }
+
+  // 인증마다 번호 규칙이 달라 자릿수까지는 검사하지 않는다. 공식 사이트 조회 확인을 함께 받는다.
+  function certNoLooksValid(type, no) {
+    if (!/^[A-Z0-9][A-Z0-9-]{3,39}$/.test(no) || !/\d/.test(no) && type !== 'radio') return false;
+    if (type === 'radio') return /^(R-[A-Z]-|MSIP-|KCC-)[A-Z0-9-]+$/.test(no);
+    return true;
+  }
+
+  function showFieldErrors(errors) {
+    $$('.field-err', form).forEach(el => el.remove());
+    $$('.invalid', form).forEach(el => el.classList.remove('invalid'));
+    for (const { field, msg } of errors) {
+      const el = form.elements[field];
+      if (!el) continue;
+      el.classList.add('invalid');
+      const box = field === 'certVerified' ? $('#certCheck') : field.startsWith('size') ? $('#sizeField') : el.closest('.field');
+      const p = document.createElement('p');
+      p.className = 'field-err';
+      p.textContent = msg;
+      box.appendChild(p);
+    }
+  }
+  // 고친 칸은 바로 오류 표시를 지운다
+  form.addEventListener('input', e => {
+    const box = e.target.closest('.field');
+    if (!e.target.classList.contains('invalid')) return;
+    e.target.classList.remove('invalid');
+    box?.querySelectorAll(':scope > .field-err').forEach(el => el.remove());
+  });
+  form.addEventListener('change', e => {
+    if (e.target.name === 'certVerified' && e.target.checked) {
+      e.target.classList.remove('invalid');
+      $('#certCheck').querySelectorAll('.field-err').forEach(el => el.remove());
+    }
+  });
+
+  let confirmedWarnings = '';
+  function showWarnings(list) {
+    const box = $('#formWarn');
+    box.hidden = !list.length;
+    if (!list.length) return;
+    box.innerHTML = `<b>분석 전에 확인해 주세요</b><ul>${list.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+      <div class="actions"><button type="button" class="btn-outline" id="warnFix">고칠게요</button>
+      <button type="button" class="btn-primary" id="warnOk">맞아요, 분석할게요</button></div>`;
+    $('#warnFix').addEventListener('click', () => { box.hidden = true; form.elements.price.focus(); });
+    $('#warnOk').addEventListener('click', () => { confirmedWarnings = list.join('|'); box.hidden = true; form.requestSubmit(); });
+    box.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
   /* ---------- 입력 중 실시간 계산 ---------- */
@@ -105,7 +280,7 @@
     const p = readForm();
     renderSummary(p);
     const box = $('#liveCalc');
-    if (p.price <= 0 || p.cost <= 0) { box.innerHTML = ''; return; }
+    if (p.price <= 0 || !p.costEntered) { box.innerHTML = ''; return; }
     const r = Profit.calc(p);
     box.innerHTML = `
       <div class="mini"><div class="k">예상 순이익</div><div class="v ${r.profit < 0 ? 'neg' : ''}">${won(r.profit)}</div></div>
@@ -225,13 +400,15 @@
   function clearForm() {
     form.reset();
     photos = [];
-    docs = [];
-    competitors = [];
     renderThumbs();
-    renderDocs();
-    renderCompetitors();
-    $$('.invalid', form).forEach(el => el.classList.remove('invalid'));
+    showFieldErrors([]);
+    $$('.legacy-hint', form).forEach(el => el.remove());
     $('#formError').textContent = '';
+    $('#formWarn').hidden = true;
+    typoCtrl?.abort();
+    typoItems = [];
+    $('#typoBox').hidden = true;
+    updateCertUI();
     lastPlatform = form.elements.platform.value;
     fillMains();
     showCatNotice('');
@@ -304,91 +481,7 @@
     renderThumbs();
   });
 
-  /* ---------- 경쟁상품 입력 ---------- */
-  function renderCompetitors() {
-    $('#competitors').innerHTML = competitors.map((c, i) => `
-      <div class="comp" data-idx="${i}">
-        <div class="comp-head"><b>경쟁상품 ${i + 1}</b>
-          <button type="button" class="link-btn danger" data-remove-comp="${i}">삭제</button></div>
-        <div class="grid-2">
-          <label class="field"><span class="label">상품명</span>
-            <input type="text" data-field="name" value="${esc(c.name)}" placeholder="예) A사 원목 트레이" maxlength="80"></label>
-          <label class="field"><span class="label">판매가</span>
-            <span class="input-unit"><input type="text" inputmode="numeric" data-money data-field="price" value="${esc(c.price)}" placeholder="0"><span class="unit">원</span></span></label>
-        </div>
-        <label class="field"><span class="label">특징</span>
-          <input type="text" data-field="features" value="${esc(c.features)}" placeholder="소재, 크기, 구성, 배송 조건 등" maxlength="500"></label>
-        <label class="field"><span class="label">소비자 리뷰 <small class="muted">(여러 개를 줄바꿈으로 구분해 붙여넣기)</small></span>
-          <textarea data-field="reviews" rows="3" maxlength="20000" placeholder="예) 생각보다 작아요&#10;마감이 거칠어요">${esc(c.reviews)}</textarea></label>
-      </div>`).join('');
-    $('#addCompetitor').hidden = competitors.length >= MAX_COMPETITORS;
-  }
-  $('#addCompetitor').addEventListener('click', () => {
-    competitors.push({ name: '', price: '', features: '', reviews: '' });
-    renderCompetitors();
-    $(`.comp[data-idx="${competitors.length - 1}"] input`).focus();
-  });
-  $('#competitors').addEventListener('input', e => {
-    const box = e.target.closest('.comp');
-    if (!box || !e.target.dataset.field) return;
-    competitors[Number(box.dataset.idx)][e.target.dataset.field] = e.target.value;
-  });
-  $('#competitors').addEventListener('click', e => {
-    const b = e.target.closest('[data-remove-comp]');
-    if (!b) return;
-    competitors.splice(Number(b.dataset.removeComp), 1);
-    renderCompetitors();
-  });
-
-  /* ---------- 자료 업로드 ---------- */
-  const docInput = $('#docInput');
-  $('#pickDoc').addEventListener('click', () => docInput.click());
-  docInput.addEventListener('change', () => { addDocs(docInput.files); docInput.value = ''; });
-  setupDrop($('#docDrop'), addDocs);
-
-  // 엑셀에서 저장한 한글 CSV는 EUC-KR인 경우가 많아 UTF-8로 읽히지 않으면 다시 읽는다.
-  function decodeText(buf) {
-    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch {
-      return new TextDecoder('euc-kr').decode(buf);
-    }
-  }
-  function toBase64(buf) {
-    let s = '';
-    const bytes = new Uint8Array(buf);
-    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    return btoa(s);
-  }
-
-  async function addDocs(files) {
-    for (const file of [...files]) {
-      if (docs.length >= MAX_DOCS) { alert(`자료는 최대 ${MAX_DOCS}개까지 올릴 수 있습니다.`); break; }
-      const ext = file.name.split('.').pop().toLowerCase();
-      const buf = await file.arrayBuffer();
-      if (ext === 'pdf') {
-        if (file.size > MAX_PDF_BYTES) { alert(`${file.name}: PDF는 10MB 이하만 올릴 수 있습니다.`); continue; }
-        docs.push({ name: file.name, kind: 'pdf', data: toBase64(buf), size: file.size });
-      } else if (ext === 'txt' || ext === 'csv') {
-        const text = decodeText(buf).trim();
-        if (!text) { alert(`${file.name}: 내용이 비어 있습니다.`); continue; }
-        if (text.length > MAX_TEXT_CHARS) { alert(`${file.name}: 글자 수가 너무 많습니다. (최대 ${MAX_TEXT_CHARS.toLocaleString('ko-KR')}자) 파일을 나눠서 올려 주세요.`); continue; }
-        docs.push({ name: file.name, kind: 'text', text, size: file.size });
-      } else {
-        alert(`${file.name}: TXT, CSV, PDF 파일만 올릴 수 있습니다.`);
-      }
-    }
-    renderDocs();
-  }
-  function renderDocs() {
-    $('#docList').innerHTML = docs.map((d, i) => `
-      <li><span>${esc(d.name)} <small class="muted">(${(d.size / 1024).toFixed(0)}KB)</small></span>
-        <button type="button" class="link-btn danger" data-remove-doc="${i}">삭제</button></li>`).join('');
-  }
-  $('#docList').addEventListener('click', e => {
-    const b = e.target.closest('[data-remove-doc]');
-    if (!b) return;
-    docs.splice(Number(b.dataset.removeDoc), 1);
-    renderDocs();
-  });
+  // 경쟁상품 입력·자료 업로드 기능은 2026-11-14에 뺐다. 예전 기록의 경쟁상품 분석은 결과 화면에서 그대로 보여 준다.
 
   /* ---------- AI 설정 ---------- */
   const dlg = $('#settings');
@@ -431,12 +524,15 @@
   const SLOW_SEC = 180;    // 이보다 오래 걸리면 안내 문구를 보여 준다
   let loadingCtrl = null;
   let loadingTimer = null;
-  function startLoading({ tips = [], preview = '' } = {}) {
+  // 화면을 가리지 않고 오른쪽 아래 상자에 진행 상황을 보여 준다. 기다리는 동안 다른 화면을 봐도 된다.
+  let jobOpenAction = null;
+  function startLoading({ tips = [] } = {}) {
     loadingCtrl = new AbortController();
     $('#cancelLoading').disabled = false;
     $('#loadingSlow').hidden = true;
-    $('#loadingPreview').innerHTML = preview;
-    $('#loadingPreview').hidden = !preview;
+    $('#jobRun').hidden = false;
+    $('#jobDone').hidden = true;
+    $('#loading').classList.remove('is-done', 'is-fail');
     const started = Date.now();
     const tick = () => {
       const sec = Math.floor((Date.now() - started) / 1000);
@@ -458,19 +554,26 @@
     loadingTimer = null;
     loadingCtrl = null;
   }
-
-  // 분석을 기다리는 동안 먼저 보여 줄 수익성 (AI가 아닌 계산값)
-  function profitPreview(p, r) {
-    const be = Profit.breakEven(p);
-    return `<p class="lp-title">기다리는 동안 먼저 확인하세요 <span class="muted">(AI 없이 바로 계산한 값)</span></p>
-      <div class="lp-grid">
-        <div class="mini"><div class="k">예상 순이익</div><div class="v ${r.profit < 0 ? 'neg' : ''}">${won(r.profit)}</div></div>
-        <div class="mini"><div class="k">예상 마진율</div><div class="v ${r.margin < 0 ? 'neg' : ''}">${pct(r.margin)}</div></div>
-        <div class="mini"><div class="k">수익성 점수</div><div class="v">${Profit.score(r.margin)}점</div></div>
-        <div class="mini"><div class="k">손익분기 판매가</div><div class="v">${be ? won(be) : '계산 불가'}</div></div>
-      </div>`;
+  // 작업이 끝나면 상자를 '완료' 모양으로 바꾼다. 보던 화면은 그대로 두고, 버튼을 눌러야 결과로 간다.
+  function finishLoading(text, { fail = false, openLabel = '결과 보기', onOpen = null } = {}) {
+    clearInterval(loadingTimer);
+    loadingTimer = null;
+    loadingCtrl = null;
+    $('#jobRun').hidden = true;
+    $('#jobDone').hidden = false;
+    $('#jobDoneText').textContent = text;
+    $('#jobIcon').textContent = fail ? '!' : '✓';
+    $('#loading').classList.toggle('is-done', !fail);
+    $('#loading').classList.toggle('is-fail', fail);
+    $('#jobOpen').textContent = openLabel;
+    $('#jobOpen').hidden = !onOpen;
+    jobOpenAction = onOpen;
+    $('#loading').hidden = false;
   }
-  const ANALYZE_TIPS = ['상품의 주요 특징과 장단점', '타깃 고객층과 시장성', '경쟁상품 가격·특징·리뷰', '차별화 요소와 판매 위험요소', '종합 점수와 판정 근거'];
+  $('#jobOpen').addEventListener('click', () => { const f = jobOpenAction; $('#loading').hidden = true; jobOpenAction = null; f?.(); });
+  $('#jobClose').addEventListener('click', () => { $('#loading').hidden = true; jobOpenAction = null; });
+  const isBusy = () => !!loadingCtrl;
+  const ANALYZE_TIPS = ['상품의 주요 특징과 장단점', '타깃 고객층과 시장성', '차별화 요소와 판매 위험요소', '종합 점수와 판정 근거'];
   const CONTENT_TIPS = ['상품명 후보', '검색 키워드', '상세페이지 구성안', '홍보문구'];
   $('#cancelLoading').addEventListener('click', () => {
     if (!loadingCtrl) return;
@@ -478,33 +581,99 @@
     loadingCtrl.abort(); // 진행 중인 AI 요청을 끊으면 기다리던 작업이 바로 끝난다
   });
 
+  /* ---------- 오타 검사 ---------- */
+  // AI가 찾은 오타를 보여 주고, 사용자가 '고치기'를 눌러야 칸의 글을 바꾼다.
+  const TYPO_FIELDS = ['name', 'description', 'material', 'components', 'certName'];
+  let typoItems = [];
+  let typoCtrl = null;
+  function renderTypos(msg) {
+    const box = $('#typoBox');
+    box.hidden = false;
+    if (msg) { box.innerHTML = `<p class="small">${msg}</p>`; return; }
+    if (!typoItems.length) {
+      box.innerHTML = '<p><b>오타를 찾지 못했어요.</b> <span class="muted small">AI 검사라 놓친 오타가 있을 수 있어요.</span></p>';
+      return;
+    }
+    box.innerHTML = `<h3>고칠 만한 곳 ${typoItems.length}개</h3>
+      <ul class="typo-list">${typoItems.map((t, i) => `<li>
+        <div><div class="typo-fix"><span class="pill">${esc(t.label)}</span><del>${esc(t.wrong)}</del> → <ins>${esc(t.right)}</ins></div>
+          ${t.reason ? `<div class="muted small">${esc(t.reason)}</div>` : ''}</div>
+        <button type="button" class="btn-outline" data-typo-fix="${i}">고치기</button></li>`).join('')}</ul>
+      <div class="typo-foot"><button type="button" class="btn-text" data-typo-close>닫기</button>
+        ${typoItems.length > 1 ? '<button type="button" class="btn-outline" data-typo-all>모두 고치기</button>' : ''}</div>
+      <p class="muted small">AI 검사 결과예요. 고치기 전에 맞는지 확인해 주세요.</p>`;
+  }
+  function applyTypo(t) {
+    const el = form.elements[t.field];
+    if (el && el.value.includes(t.wrong)) el.value = el.value.replace(t.wrong, t.right);
+  }
+  $('#typoBtn').addEventListener('click', async () => {
+    if (!AI.isReady()) { openSettings(); return; }
+    const fields = Object.fromEntries(TYPO_FIELDS.map(k => [k, form.elements[k]?.value || '']));
+    if (!Object.values(fields).some(v => v.trim())) { renderTypos('검사할 글이 없어요. 상품명이나 설명을 먼저 써 주세요.'); return; }
+    const btn = $('#typoBtn');
+    btn.disabled = true;
+    btn.textContent = '검사 중…';
+    renderTypos('AI가 오타를 찾고 있어요. 보통 10~30초 걸려요.');
+    typoCtrl = new AbortController();
+    try {
+      typoItems = await AI.proofread(fields, typoCtrl.signal);
+      renderTypos();
+    } catch (ex) {
+      if (!typoCtrl?.signal.aborted) renderTypos(`오타 검사를 하지 못했어요. ${esc(ex.message)}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '오타 검사';
+      typoCtrl = null;
+    }
+  });
+  $('#typoBox').addEventListener('click', e => {
+    const one = e.target.closest('[data-typo-fix]');
+    if (one) {
+      applyTypo(typoItems[Number(one.dataset.typoFix)]);
+      typoItems.splice(Number(one.dataset.typoFix), 1);
+    } else if (e.target.closest('[data-typo-all]')) {
+      typoItems.forEach(applyTypo);
+      typoItems = [];
+    } else if (e.target.closest('[data-typo-close]')) {
+      $('#typoBox').hidden = true;
+      return;
+    } else return;
+    liveCalc();
+    if (typoItems.length) renderTypos(); else renderTypos('모두 고쳤어요.');
+  });
+
   /* ---------- 분석 실행 ---------- */
   form.addEventListener('submit', async e => {
     e.preventDefault();
+    if (isBusy()) return; // AI 작업이 끝날 때까지 다시 분석하지 않는다
     const product = readForm();
-    const err = validate(product);
-    $('#formError').textContent = err;
-    if (err) {
+    const { errors, warnings } = validate(product);
+    showFieldErrors(errors);
+    $('#formError').textContent = errors.length ? `고쳐야 할 칸이 ${errors.length}개 있어요. 빨간 안내를 확인해 주세요.` : '';
+    if (errors.length) {
+      $('#formWarn').hidden = true;
       // 오른쪽 요약의 버튼으로 눌렀을 때도 빠진 칸이 보이도록 그 칸으로 이동한다
       const bad = $('.invalid', form);
       if (bad) { bad.scrollIntoView({ block: 'center', behavior: 'smooth' }); bad.focus({ preventScroll: true }); }
       return;
     }
+    if (warnings.length && warnings.join('|') !== confirmedWarnings) { showWarnings(warnings); return; }
+    $('#formWarn').hidden = true;
 
     const profit = Profit.calc(product);
     let ai = null, aiError = null;
     if (AI.isReady()) {
       $('#loadingText').textContent = 'AI가 상품을 분석하고 있습니다';
-      const tips = product.competitors.length || product.docs.length ? ANALYZE_TIPS : ANALYZE_TIPS.filter(t => !t.startsWith('경쟁상품'));
-      const signal = startLoading({ tips, preview: profitPreview(product, profit) });
+      const tips = ANALYZE_TIPS;
+      const signal = startLoading({ tips });
       $$('[data-analyze]').forEach(b => { b.disabled = true; });
       try { ai = await AI.analyze(product, profit, signal); } catch (ex) { aiError = { code: ex.code, message: ex.message }; }
-      stopLoading();
       $$('[data-analyze]').forEach(b => { b.disabled = false; });
-      // 취소하면 저장하지 않고 입력 화면에 그대로 머문다 (입력한 내용은 남아 있음)
+      // 취소하면 저장하지 않는다 (입력한 내용은 남아 있음)
       if (signal.aborted) {
+        stopLoading();
         $('#formError').textContent = '분석을 취소했습니다. 내용을 고친 뒤 다시 분석할 수 있습니다.';
-        go('input');
         return;
       }
     } else {
@@ -534,18 +703,24 @@
         name: product.name, category: product.category, catMain: product.catMain, catSub: product.catSub,
         description: product.description,
         material: product.material, size: product.size,
+        sizeW: product.sizeW, sizeD: product.sizeD, sizeH: product.sizeH, sizeUnit: product.sizeUnit,
         components: product.components, certification: product.certification,
+        certType: product.certType, certNo: product.certNo, certName: product.certName, certVerified: product.certVerified,
         cost: product.cost, price: product.price, shipping: product.shipping, packaging: product.packaging,
         feeRate: product.feeRate, platform: product.platform, targetMargin: product.targetMargin,
         competitors: product.competitors,
         docNames: product.docs.map(d => d.name),
         thumb: photos[0] ? (await shrink(photos[0].url, 160)).url : null,
+        photoCount: photos.length,
       },
       profit, ai, aiError, scores, verdict,
     };
     record.saved = Store.save(record);
     formRecordId = record.id;
-    showRecord(record);
+    if (!ai && aiError?.code === 'no-key') { showRecord(record); return; }
+    // 보던 화면은 그대로 두고, 오른쪽 아래 상자에서 결과로 이동한다
+    finishLoading(ai ? `'${product.name}' 분석이 끝났어요` : 'AI 분석은 실패했지만 수익성 계산은 저장했어요',
+      { fail: !ai, onOpen: () => showRecord(record) });
   });
 
   function showRecord(record) {
@@ -561,8 +736,10 @@
       clearForm();
       const p = current.product;
       for (const k of ['name', 'description', 'targetMargin']) form.elements[k].value = p[k];
-      for (const k of ['material', 'size', 'components', 'certification']) form.elements[k].value = p[k] || ''; // 이전에 저장된 기록에는 없을 수 있음
+      for (const k of ['material', 'components']) form.elements[k].value = p[k] || ''; // 이전에 저장된 기록에는 없을 수 있음
+      restoreSizeCert(p);
       for (const k of ['cost', 'price', 'shipping', 'packaging']) form.elements[k].value = p[k] ? Number(p[k]).toLocaleString('ko-KR') : '';
+      if (p.cost === 0) form.elements.cost.value = '0';
       form.elements.feeRate.value = p.feeRate || '';
       // 지금 선택지에 없는 예전 플랫폼(네이버 마케팅 링크 유입)은 네이버 스마트스토어로 불러온다
       const plat = p.platform === 'naverLink' ? 'naver' : p.platform;
@@ -583,11 +760,9 @@
         showCatNotice(`예전에 저장한 '${p.category}' 카테고리는 새 카테고리 목록에 없어 비워 두었습니다. ${Platforms.label(p.platform)} 카테고리를 다시 골라 주세요. 저장했던 수수료(${p.feeRate}%)는 그대로 두었습니다.`);
       }
       applyPlatformFee(false);
-      competitors = p.competitors.map(c => ({ ...c, price: c.price ? Number(c.price).toLocaleString('ko-KR') : '' }));
-      renderCompetitors();
       formRecordId = current.id;
       liveCalc();
-      if (p.thumb || p.docNames.length) alert('사진과 업로드 자료는 저장되지 않습니다. 필요하면 다시 올려 주세요.');
+      if (p.thumb) alert('사진은 저장되지 않습니다. 필요하면 다시 올려 주세요.');
     }
     go('input');
   });
@@ -606,6 +781,9 @@
 
     let html = current.saved === false
       ? '<p class="note small">저장 공간이 부족해 이 분석은 저장되지 않았습니다. 저장된 분석 중 필요 없는 항목을 삭제해 주세요.</p>' : '';
+    if (!product.thumb && product.photoCount === 0) {
+      html += '<p class="note small">사진 없이 분석했습니다. 상세페이지 이미지는 사진을 추가한 뒤 만들 수 있어요.</p>';
+    }
     if (ai) {
       if (ai.notices?.length) html += `<div class="note small"><b>${esc(ai.model)}</b>로 분석한 결과입니다.<ul>${ai.notices.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>`;
       html += verdictCard(verdict, ai);
@@ -733,12 +911,7 @@
   function competitionCard(product, ai) {
     const comps = product.competitors;
     const hasInput = comps.length > 0 || product.docNames.length > 0;
-    if (!hasInput) {
-      return `<div class="card">
-        <h2>경쟁상품 분석</h2>
-        <p class="muted">입력된 경쟁상품 정보가 없습니다. 상품 입력 화면에서 경쟁상품 가격·특징·리뷰를 입력하거나 자료를 올리면 비교 분석 결과가 여기에 표시됩니다.</p>
-      </div>`;
-    }
+    if (!hasInput) return ''; // 경쟁상품 입력 기능을 뺐으므로, 예전 기록에만 보인다
     const st = Profit.competitorStats(product);
     const c = ai?.competition;
     let html = `<div class="card"><h2>경쟁상품 분석 <small class="muted">(직접 입력한 정보 기준)</small></h2>`;
@@ -746,7 +919,7 @@
     if (st) {
       html += `<div class="kpis">
         <div class="kpi"><div class="k">경쟁상품 평균가 (${st.count}개)</div><div class="v">${won(st.avg)}</div></div>
-        <div class="kpi"><div class="k">경쟁 가격 범위</div><div class="v" style="font-size:16px">${won(st.min)} ~ ${won(st.max)}</div></div>
+        <div class="kpi"><div class="k">경쟁 가격 범위</div><div class="v" style="font-size:22px">${won(st.min)} ~ ${won(st.max)}</div></div>
         <div class="kpi"><div class="k">내 판매가 (평균 대비)</div><div class="v">${st.diffPct >= 0 ? '+' : ''}${pct(st.diffPct)}</div></div>
         <div class="kpi"><div class="k">평균가로 팔 때 순이익</div><div class="v ${st.atAvg.profit < 0 ? 'neg' : ''}">${won(st.atAvg.profit)}</div></div>
       </div>
@@ -863,20 +1036,22 @@
   async function makeContent() {
     if (!current?.ai) return;
     if (!AI.isReady()) { openSettings(); return; }
+    if (isBusy()) { alert('AI가 다른 작업을 하고 있어요. 오른쪽 아래 상자에서 끝나면 다시 눌러 주세요.'); return; }
+    const rec = current; // 기다리는 동안 다른 기록을 열어도 이 기록에 저장한다
     // 저장된 분석에는 사진·자료 원본이 없으므로 글 정보만으로 만든다
-    const product = { ...current.product, photos: [], docs: [] };
+    const product = { ...rec.product, photos: [], docs: [] };
     $('#loadingText').textContent = 'AI가 판매 콘텐츠를 만들고 있습니다';
     const signal = startLoading({ tips: CONTENT_TIPS });
+    const openContent = () => { showRecord(rec); $('#contentCard')?.scrollIntoView({ block: 'start' }); };
     try {
-      current.ai.content = await AI.generateContent(product, current.profit, current.ai, signal);
-      delete current.ai.detailPage; // 새 콘텐츠로 상세페이지를 다시 만든다
-      current.saved = Store.save(current);
-      renderResult();
-      $('#contentCard')?.scrollIntoView({ block: 'start' });
+      rec.ai.content = await AI.generateContent(product, rec.profit, rec.ai, signal);
+      delete rec.ai.detailPage; // 새 콘텐츠로 상세페이지를 다시 만든다
+      rec.saved = Store.save(rec);
+      if (current === rec && !$('#view-result').hidden) renderResult();
+      finishLoading('판매 콘텐츠를 만들었어요', { openLabel: '콘텐츠 보기', onOpen: openContent });
     } catch (ex) {
-      if (!signal.aborted) alert(`판매 콘텐츠를 만들지 못했습니다.\n${ex.message}`);
-    } finally {
-      stopLoading();
+      if (signal.aborted) stopLoading();
+      else finishLoading(`판매 콘텐츠를 만들지 못했어요. ${ex.message}`, { fail: true });
     }
   }
 

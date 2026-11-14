@@ -31,7 +31,7 @@
           <span class="hero-badge">예비창업자를 위한 AI 판매 도우미</span>
           <h1>판매할 상품 정보를 입력해 주세요</h1>
           <p>입력한 정보로 AI가 상품을 분석하고, 예상 수익과 판매 가능성을 계산합니다. <b>*</b> 표시는 필수 항목입니다.</p>
-          <ul class="hero-chips"><li>수익 바로 계산</li><li>AI 상품 분석</li><li>경쟁상품 비교</li><li>상세페이지 초안</li></ul>
+          <ul class="hero-chips"><li>수익 바로 계산</li><li>AI 상품 분석</li><li>오타 검사</li><li>상세페이지 초안</li></ul>
         </div>
         <svg class="hero-art" viewBox="0 0 240 180" aria-hidden="true">
           <rect x="18" y="22" width="168" height="124" rx="14" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-opacity=".3"/>
@@ -79,6 +79,7 @@
               <span class="muted small">또는 이곳에 사진을 끌어다 놓으세요</span>
             </div>
             <div class="thumbs" id="thumbs"></div>
+            <p class="hint small">사진이 없어도 분석할 수 있어요. 상세페이지 이미지를 만들려면 사진이 필요해요.</p>
           </div>
 
           <label class="field">
@@ -112,17 +113,50 @@
               <input type="text" name="material" placeholder="예) 아카시아 원목, 오일 마감" maxlength="200">
             </label>
             <label class="field">
-              <span class="label">크기</span>
-              <input type="text" name="size" placeholder="예) 가로 30 × 세로 20 × 높이 4cm" maxlength="200">
-            </label>
-            <label class="field">
               <span class="label">구성품</span>
-              <input type="text" name="components" placeholder="예) 트레이 1개, 보관 파우치 1개" maxlength="300">
+              <input type="text" name="components" placeholder="비워 두면 '단품'으로 들어가요 · 예) 트레이 1개, 파우치 1개" maxlength="300">
             </label>
-            <label class="field">
-              <span class="label">인증 정보</span>
-              <input type="text" name="certification" placeholder="예) KC 인증 (인증번호 기재). 없거나 모르면 비워 두세요" maxlength="300">
-            </label>
+          </div>
+
+          <div class="field" id="sizeField">
+            <span class="label">크기 <small class="muted">(숫자만, 아는 것만 입력)</small></span>
+            <div class="size-row">
+              <label class="size-box"><span>가로</span><input type="text" inputmode="decimal" name="sizeW" data-num placeholder="30" aria-label="가로"></label>
+              <span class="size-x" aria-hidden="true">×</span>
+              <label class="size-box"><span>세로</span><input type="text" inputmode="decimal" name="sizeD" data-num placeholder="20" aria-label="세로"></label>
+              <span class="size-x" aria-hidden="true">×</span>
+              <label class="size-box"><span>높이</span><input type="text" inputmode="decimal" name="sizeH" data-num placeholder="4" aria-label="높이"></label>
+              <select name="sizeUnit" aria-label="크기 단위"><option value="cm">cm</option><option value="mm">mm</option></select>
+            </div>
+          </div>
+
+          <div class="field" id="certField">
+            <span class="label">인증 정보</span>
+            <div class="grid-2 cert-grid">
+              <label class="field">
+                <span class="label small-label">인증 종류</span>
+                <select name="certType">
+                  <option value="">없음 / 모름</option>
+                  <option value="kcSafety">KC 안전인증</option>
+                  <option value="kcConfirm">KC 안전확인</option>
+                  <option value="kcSupplier">KC 공급자적합성확인 (인증번호 없음)</option>
+                  <option value="radio">전파인증 (방송통신기자재 적합성평가)</option>
+                  <option value="other">기타 인증</option>
+                </select>
+              </label>
+              <label class="field" id="certNoField" hidden>
+                <span class="label small-label">인증번호 <b>*</b></span>
+                <input type="text" name="certNo" maxlength="40" autocomplete="off" spellcheck="false" placeholder="인증서에 적힌 번호 그대로">
+              </label>
+              <label class="field" id="certNameField" hidden>
+                <span class="label small-label">인증 이름 <b>*</b></span>
+                <input type="text" name="certName" maxlength="60" placeholder="예) 식품용 기구 적합 (자가품질검사)">
+              </label>
+            </div>
+            <div id="certCheck" hidden>
+              <p class="hint small" id="certHelp"></p>
+              <label class="check"><input type="checkbox" name="certVerified"> <span id="certVerifiedText">인증번호를 공식 사이트에서 조회해 이 상품의 인증이 맞는 것을 확인했어요</span></label>
+            </div>
           </div>
         </div>
 
@@ -159,26 +193,12 @@
           <div class="live-calc" id="liveCalc" aria-live="polite"></div>
         </div>
 
-        <div class="card">
-          <h2><span class="h-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></span>경쟁상품 정보 <small class="muted">(선택, 최대 5개)</small></h2>
-          <p class="note small">이 서비스는 실시간 시장 데이터를 조회하지 않습니다. 오픈마켓 등에서 직접 확인한 경쟁상품 정보와 소비자 리뷰를 입력하거나 자료 파일을 올리면, <b>입력한 내용만</b> 근거로 분석합니다.</p>
-          <div id="competitors"></div>
-          <button type="button" class="btn-outline" id="addCompetitor">+ 경쟁상품 추가</button>
-
-          <div class="field" style="margin-top:20px">
-            <span class="label">자료 업로드 <small class="muted">(리뷰 모음, 경쟁상품 정리 자료 등 · TXT, CSV, PDF · 최대 3개)</small></span>
-            <div class="upload" id="docDrop">
-              <input type="file" id="docInput" accept=".txt,.csv,.pdf,text/plain,text/csv,application/pdf" multiple hidden>
-              <button type="button" class="btn-outline" id="pickDoc">파일 선택</button>
-              <span class="muted small">또는 이곳에 파일을 끌어다 놓으세요</span>
-            </div>
-            <ul class="doc-list" id="docList"></ul>
-          </div>
-        </div>
-
         <p class="form-error" id="formError" role="alert"></p>
+        <div class="warn-box" id="formWarn" role="alert" hidden></div>
+        <div class="typo-box" id="typoBox" aria-live="polite" hidden></div>
         <div class="actions">
           <button type="button" class="btn-text" id="resetForm">입력 초기화</button>
+          <button type="button" class="btn-outline" id="typoBtn">오타 검사</button>
           <button type="submit" class="btn-primary" id="analyzeBtn" data-analyze>AI 분석 시작</button>
         </div>
       </form>
@@ -286,19 +306,28 @@
     </section>
   </main>
 
-  <!-- 로딩 -->
-  <div class="overlay" id="loading" hidden>
-    <div class="loading-box">
-      <div class="spinner" aria-hidden="true"></div>
-      <p><b id="loadingText">AI가 상품을 분석하고 있습니다</b></p>
-      <p class="loading-time"><span id="loadingElapsed">0:00</span> 지남 <span class="muted">· 보통 1~2분 걸립니다</span></p>
+  <!-- AI 작업 상태 (오른쪽 아래, 화면을 가리지 않음) -->
+  <aside class="job-dock" id="loading" role="status" aria-live="polite" hidden>
+    <div class="job-run" id="jobRun">
+      <div class="job-head">
+        <div class="spinner" aria-hidden="true"></div>
+        <b id="loadingText">AI가 상품을 분석하고 있습니다</b>
+      </div>
+      <p class="loading-time"><span id="loadingElapsed">0:00</span> 지남 <span class="muted">· 보통 1~2분</span></p>
       <div class="loading-bar" aria-hidden="true"><i id="loadingBar"></i></div>
-      <p class="muted small loading-tip" id="loadingTip" aria-live="polite"></p>
-      <p class="loading-slow" id="loadingSlow" hidden>평소보다 오래 걸리고 있습니다. 조금 더 기다리거나, 취소하고 나중에 다시 시도할 수 있습니다.</p>
-      <div class="loading-preview" id="loadingPreview" hidden></div>
-      <button type="button" class="btn-outline" id="cancelLoading" style="margin-top:16px">취소하고 돌아가기</button>
+      <p class="muted small loading-tip" id="loadingTip"></p>
+      <p class="loading-slow" id="loadingSlow" hidden>평소보다 오래 걸리고 있어요. 더 기다리거나 취소할 수 있어요.</p>
+      <p class="muted small">기다리는 동안 다른 화면을 봐도 괜찮아요.</p>
+      <button type="button" class="btn-outline job-btn" id="cancelLoading">취소</button>
     </div>
-  </div>
+    <div class="job-done" id="jobDone" hidden>
+      <div class="job-head"><span class="job-ok" id="jobIcon" aria-hidden="true">✓</span><b id="jobDoneText">분석이 끝났어요</b></div>
+      <div class="job-actions">
+        <button type="button" class="btn-primary job-btn" id="jobOpen">결과 보기</button>
+        <button type="button" class="btn-outline job-btn" id="jobClose">닫기</button>
+      </div>
+    </div>
+  </aside>
 
   <!-- AI 설정 -->
   <dialog id="settings">

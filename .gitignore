@@ -2,3 +2,4 @@
 backup/
 docs/
 .DS_Store
+.claude/
