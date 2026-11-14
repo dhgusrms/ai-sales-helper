@@ -80,15 +80,52 @@
   }
 
   /* ---------- 크기·인증 (숫자 칸과 인증 종류로 입력받아 글로 합친다) ---------- */
-  const SIZE_MAX = { cm: 1000, mm: 10000 };
+  const SIZE_MAX = { cm: 1000, mm: 10000, m: 100 };
+  const SIZE_UNITS = ['cm', 'mm', 'm'];
+  // 모양마다 쓰는 칸과 이름. 칸은 sizeW, sizeD, sizeH 순서로 앞에서부터 쓴다.
+  const SIZE_SHAPES = {
+    box: ['가로', '세로', '높이'],
+    flat: ['가로', '세로'],
+    round: ['지름', '높이'],
+    length: ['길이'],
+    free: [],
+  };
+  const SIZE_KEYS = ['sizeW', 'sizeD', 'sizeH'];
+  const SIZE_HOLDERS = { box: ['30', '20', '4'], flat: ['60', '40'], round: ['8', '10'], length: ['150'] };
+  const shapeOf = v => (SIZE_SHAPES[v] ? v : 'box');
+  // 받침이 있으면 '은', 없으면 '는'
+  const eunNeun = w => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? `${w}은` : `${w}는`);
+
   function readSize(f) {
-    const unit = f.get('sizeUnit') === 'mm' ? 'mm' : 'cm';
-    const raw = { sizeW: f.get('sizeW'), sizeD: f.get('sizeD'), sizeH: f.get('sizeH') };
-    const dims = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, String(v || '').trim()]));
-    const parts = [['가로', dims.sizeW], ['세로', dims.sizeD], ['높이', dims.sizeH]].filter(([, v]) => v !== '');
-    const size = parts.length ? `${parts.map(([k, v]) => `${k} ${v}`).join(' × ')}${unit}` : '';
-    return { ...dims, sizeUnit: unit, size };
+    const sizeShape = shapeOf(f.get('sizeShape'));
+    const unit = SIZE_UNITS.includes(f.get('sizeUnit')) ? f.get('sizeUnit') : 'cm';
+    const labels = SIZE_SHAPES[sizeShape];
+    // 지금 모양에서 안 쓰는 칸은 비운 것으로 본다
+    const dims = Object.fromEntries(SIZE_KEYS.map((k, i) => [k, i < labels.length ? String(f.get(k) || '').trim() : '']));
+    const sizeText = sizeShape === 'free' ? String(f.get('sizeText') || '').trim() : '';
+    let size = sizeText;
+    if (sizeShape !== 'free') {
+      const parts = labels.map((l, i) => [l, dims[SIZE_KEYS[i]]]).filter(([, v]) => v !== '');
+      size = parts.length ? `${parts.map(([k, v]) => `${k} ${v}`).join(' × ')}${unit}` : '';
+    }
+    return { ...dims, sizeShape, sizeUnit: unit, sizeText, size };
   }
+  function updateSizeUI() {
+    const shape = shapeOf(form.elements.sizeShape.value);
+    const labels = SIZE_SHAPES[shape];
+    $('#sizeRow').hidden = shape === 'free';
+    $('#sizeText').hidden = shape !== 'free';
+    $$('[data-slot]', form).forEach(box => {
+      const i = Number(box.dataset.slot);
+      box.hidden = i >= labels.length;
+      if (i < labels.length) {
+        box.querySelector('span').textContent = labels[i];
+        box.querySelector('input').placeholder = SIZE_HOLDERS[shape]?.[i] || '';
+      }
+    });
+    $$('[data-slot-x]', form).forEach(x => { x.hidden = Number(x.dataset.slotX) >= labels.length; });
+  }
+  form.elements.sizeShape.addEventListener('change', updateSizeUI);
 
   const CERT_TYPES = {
     kcSafety: { label: 'KC 안전인증', no: '인증번호', needNo: true, site: 'safety' },
@@ -149,9 +186,12 @@
       el.textContent = text;
       box.appendChild(el);
     };
+    form.elements.sizeShape.value = shapeOf(p.sizeShape);
+    form.elements.sizeText.value = p.sizeText || '';
+    updateSizeUI();
     if ('sizeW' in p) {
-      for (const k of ['sizeW', 'sizeD', 'sizeH']) form.elements[k].value = p[k] || '';
-      form.elements.sizeUnit.value = p.sizeUnit === 'mm' ? 'mm' : 'cm';
+      for (const k of SIZE_KEYS) form.elements[k].value = p[k] || '';
+      form.elements.sizeUnit.value = SIZE_UNITS.includes(p.sizeUnit) ? p.sizeUnit : 'cm';
     } else if (p.size) {
       hint($('#sizeField'), `예전에 적은 크기: "${p.size}" — 숫자 칸에 다시 입력해 주세요.`);
     }
@@ -197,12 +237,14 @@
     else if (p.feeRate >= 100) err('feeRate', '수수료는 100% 미만이어야 해요.');
     if (p.targetMargin >= 100) err('targetMargin', '목표 마진율은 100% 미만이어야 해요.');
 
-    for (const [k, label] of [['sizeW', '가로'], ['sizeD', '세로'], ['sizeH', '높이']]) {
-      if (p[k] === '') continue;
+    SIZE_SHAPES[p.sizeShape].forEach((label, i) => {
+      const k = SIZE_KEYS[i];
+      if (p[k] === '') return;
       const n = Number(p[k]);
-      if (!Number.isFinite(n) || n <= 0) err(k, `${label}는 0보다 큰 숫자로 입력해 주세요.`);
-      else if (n > SIZE_MAX[p.sizeUnit]) err(k, `${label} ${p[k]}${p.sizeUnit}는 너무 커요. 단위(cm/mm)를 확인해 주세요.`);
-    }
+      if (!Number.isFinite(n) || n <= 0) err(k, `${eunNeun(label)} 0보다 큰 숫자로 입력해 주세요.`);
+      else if (n > SIZE_MAX[p.sizeUnit]) err(k, `${label} ${p[k]}${p.sizeUnit}는 너무 커요. 단위(cm/mm/m)를 확인해 주세요.`);
+    });
+    if (p.sizeShape === 'free' && p.sizeText && !/[0-9A-Za-z가-힣]/.test(p.sizeText)) err('sizeText', '크기를 글자나 숫자로 써 주세요. 예) S·M·L');
 
     const t = CERT_TYPES[p.certType];
     if (t) {
@@ -409,6 +451,7 @@
     typoItems = [];
     $('#typoBox').hidden = true;
     updateCertUI();
+    updateSizeUI();
     lastPlatform = form.elements.platform.value;
     fillMains();
     showCatNotice('');
@@ -703,6 +746,7 @@
         name: product.name, category: product.category, catMain: product.catMain, catSub: product.catSub,
         description: product.description,
         material: product.material, size: product.size,
+        sizeShape: product.sizeShape, sizeText: product.sizeText,
         sizeW: product.sizeW, sizeD: product.sizeD, sizeH: product.sizeH, sizeUnit: product.sizeUnit,
         components: product.components, certification: product.certification,
         certType: product.certType, certNo: product.certNo, certName: product.certName, certVerified: product.certVerified,

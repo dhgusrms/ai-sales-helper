@@ -117,6 +117,7 @@ input[data-money], input[data-num] { text-align: right; font-variant-numeric: ta
 .field-err { color: var(--bad); font-size: 18px; margin-top: 6px; }
 .small-label { font-size: 18px; font-weight: 500; color: var(--muted); }
 .cert-grid .field { margin-bottom: 8px; }
+.size-shape { margin-bottom: 10px; }
 .size-row { display: flex; align-items: flex-end; gap: 8px; }
 .size-box { flex: 1; min-width: 0; }
 .size-box span { display: block; font-size: 17px; color: var(--muted); margin-bottom: 4px; }

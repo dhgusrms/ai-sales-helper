@@ -119,15 +119,23 @@
           </div>
 
           <div class="field" id="sizeField">
-            <span class="label">크기 <small class="muted">(숫자만, 아는 것만 입력)</small></span>
-            <div class="size-row">
-              <label class="size-box"><span>가로</span><input type="text" inputmode="decimal" name="sizeW" data-num placeholder="30" aria-label="가로"></label>
-              <span class="size-x" aria-hidden="true">×</span>
-              <label class="size-box"><span>세로</span><input type="text" inputmode="decimal" name="sizeD" data-num placeholder="20" aria-label="세로"></label>
-              <span class="size-x" aria-hidden="true">×</span>
-              <label class="size-box"><span>높이</span><input type="text" inputmode="decimal" name="sizeH" data-num placeholder="4" aria-label="높이"></label>
-              <select name="sizeUnit" aria-label="크기 단위"><option value="cm">cm</option><option value="mm">mm</option></select>
+            <span class="label">크기 <small class="muted">(모양을 고르면 필요한 칸만 나와요. 아는 것만 입력)</small></span>
+            <select name="sizeShape" class="size-shape" aria-label="크기 모양">
+              <option value="box">상자 모양 (가로·세로·높이) 예) 수납함, 트레이</option>
+              <option value="flat">납작한 모양 (가로·세로) 예) 매트, 포스터, 손수건</option>
+              <option value="round">둥근 모양 (지름·높이) 예) 컵, 화분, 캔들</option>
+              <option value="length">긴 모양 (길이) 예) 케이블, 끈, 목걸이</option>
+              <option value="free">직접 쓰기 예) 의류 S·M·L, 신발 230~280</option>
+            </select>
+            <div class="size-row" id="sizeRow">
+              <label class="size-box" data-slot="0"><span>가로</span><input type="text" inputmode="decimal" name="sizeW" data-num placeholder="30"></label>
+              <span class="size-x" data-slot-x="1" aria-hidden="true">×</span>
+              <label class="size-box" data-slot="1"><span>세로</span><input type="text" inputmode="decimal" name="sizeD" data-num placeholder="20"></label>
+              <span class="size-x" data-slot-x="2" aria-hidden="true">×</span>
+              <label class="size-box" data-slot="2"><span>높이</span><input type="text" inputmode="decimal" name="sizeH" data-num placeholder="4"></label>
+              <select name="sizeUnit" aria-label="크기 단위"><option value="cm">cm</option><option value="mm">mm</option><option value="m">m</option></select>
             </div>
+            <input type="text" name="sizeText" id="sizeText" maxlength="80" placeholder="예) S·M·L / 230~280mm / 프리사이즈" hidden>
           </div>
 
           <div class="field" id="certField">
