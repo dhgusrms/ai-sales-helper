@@ -696,7 +696,7 @@
     $('#formError').textContent = errors.length ? `고쳐야 할 칸이 ${errors.length}개 있어요. 빨간 안내를 확인해 주세요.` : '';
     if (errors.length) {
       $('#formWarn').hidden = true;
-      // 오른쪽 요약의 버튼으로 눌렀을 때도 빠진 칸이 보이도록 그 칸으로 이동한다
+      // 버튼이 아래에 있으므로, 빠진 칸이 보이도록 그 칸으로 이동한다
       const bad = $('.invalid', form);
       if (bad) { bad.scrollIntoView({ block: 'center', behavior: 'smooth' }); bad.focus({ preventScroll: true }); }
       return;
