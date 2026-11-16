@@ -21,6 +21,11 @@
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
+/* Safari가 상품명·재질 같은 칸을 연락처 칸으로 착각해 붙이는 사람 모양 자동완성 버튼 숨기기 */
+input::-webkit-contacts-auto-fill-button,
+input::-webkit-credentials-auto-fill-button {
+  visibility: hidden; display: none !important; pointer-events: none; position: absolute; right: 0;
+}
 body {
   margin: 0;
   background: var(--bg);
