@@ -1016,6 +1016,15 @@
     return items?.length ? `<ul>${items.map((t, i) => `<li>${ed(`${base}.${i}`, t)}</li>`).join('')}</ul>` : '<p class="muted">해당 없음</p>';
   }
 
+  // 사진으로 본 제품: 사진을 AI에 함께 보낸 분석에만 있다.
+  function photoReviewBox(pr) {
+    if (!pr) return '';
+    const part = (title, key) => pr[key]?.length ? `<p class="photo-review-h">${title}</p>${list(pr[key], `photo_review.${key}`)}` : '';
+    return box('사진으로 본 제품', `
+      <p class="muted small">AI가 올린 사진만 보고 한 참고 의견이에요. 무게·내구성·실제 품질은 직접 확인해 주세요.</p>
+      ${part('좋아 보이는 점', 'good')}${part('아쉬워 보이는 점', 'bad')}${part('사진을 더 좋게 하려면', 'tips')}`);
+  }
+
   function analysisCard(ai) {
     const points = ai.selling_points || []; // 이전에 저장된 기록에는 없음
     return `<div class="card">
@@ -1026,6 +1035,7 @@
         ${box('장점', list(ai.strengths, 'strengths'))}
         ${box('단점', list(ai.weaknesses, 'weaknesses'))}
       </div>
+      ${photoReviewBox(ai.photo_review)}
       ${box('강조할 장점과 근거', points.length
         ? `<ul class="list-plain">${points.map((x, i) => `<li><b>${ed(`selling_points.${i}.point`, x.point)}</b>
             <div class="sub">근거: ${ed(`selling_points.${i}.evidence`, x.evidence)}</div></li>`).join('')}</ul>`

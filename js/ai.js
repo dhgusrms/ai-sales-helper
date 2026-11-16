@@ -142,6 +142,28 @@ const AI = (() => {
     additionalProperties: false,
   };
 
+  // 사진을 AI에 보낼 때만 붙이는 항목: 사진으로 본 제품의 좋은 점·아쉬운 점·사진 개선 팁
+  const PHOTO_REVIEW = {
+    type: 'object',
+    properties: { good: strList, bad: strList, tips: strList },
+    required: ['good', 'bad', 'tips'],
+    additionalProperties: false,
+  };
+  const PHOTO_SCHEMA = {
+    ...SCHEMA,
+    properties: { ...SCHEMA.properties, photo_review: PHOTO_REVIEW },
+    required: [...SCHEMA.required, 'photo_review'],
+  };
+  const PHOTO_RULE = `
+
+[첨부 사진 검토]
+상품 사진이 함께 왔습니다. 사진을 직접 보고 photo_review를 채우세요.
+- good: 사진에서 실제로 보이는 이 제품의 좋은 점 1~3개 (디자인, 색감, 마감 상태, 구성, 크기감 등)
+- bad: 사진에서 보이는 아쉬운 점이나 구매자가 걱정할 만한 점 1~3개. 입력한 설명과 사진이 다르게 보이면(예: 원목이라 했는데 플라스틱처럼 보임) 꼭 씁니다.
+- tips: 판매용 사진을 더 좋게 만드는 구체적인 방법 1~3개 (배경, 조명, 각도, 크기 비교 소품, 사용 장면 등)
+- 모든 문장은 "사진상"으로 본 판단입니다. 무게, 내구성, 냄새, 촉감, 실제 품질처럼 사진으로 알 수 없는 것은 쓰지 마세요.
+- 사진에 보이지 않는 것을 지어내지 마세요. 사진이 흐리거나 제품이 잘 안 보이면 bad와 tips에 그렇게 씁니다.`;
+
   const SYSTEM = `당신은 온라인 판매를 준비하는 예비창업자와 소상공인을 돕는 상품 분석가입니다.
 사용자가 입력한 상품 정보(사진, 설명, 재질, 크기, 구성품, 인증 정보, 카테고리, 가격·비용)를 바탕으로, 이 상품군에 대한 당신의 일반 지식을 더해 판매 가능성을 분석합니다.
 입력 정보를 여러 항목에 되풀이해 옮겨 적는 것은 분석이 아닙니다. 입력 정보에서 출발해 "그래서 구매자와 판매자에게 어떤 의미인지", "이런 종류의 상품에서 보통 무엇이 문제가 되는지"까지 생각을 넓혀 쓰세요.
@@ -287,7 +309,9 @@ ${each.join('\n')}
   }
 
   async function analyzeClaude(product, profit, signal) {
-    const { parsed, model } = await requestClaude(SYSTEM, buildContent(product, profit), SCHEMA, signal);
+    const hasPhotos = product.photos.length > 0;
+    const { parsed, model } = await requestClaude(hasPhotos ? SYSTEM + PHOTO_RULE : SYSTEM, buildContent(product, profit),
+      hasPhotos ? PHOTO_SCHEMA : SCHEMA, signal);
     return normalize(parsed, model, []);
   }
 
@@ -353,16 +377,47 @@ ${each.join('\n')}
     return normalize(parsed, label, notices);
   }
 
+  // 무료 AI(Gemma 4)는 사진도 읽는다. 대표 사진부터 최대 3장을 줄여서 함께 보낸다.
   async function analyzeCloud(product, profit, signal) {
-    const { notices, docsInline } = textOnlyInput(product, '무료 AI(Cloudflare)');
-    const { parsed, model } = await requestCloud(SYSTEM, buildText(product, profit, docsInline), SCHEMA, signal);
-    return normalize(parsed, model, notices);
+    const { notices, docsInline } = textOnlyInput(product, '무료 AI(Cloudflare)', { photos: true });
+    const images = [];
+    for (const p of product.photos.slice(0, 3)) {
+      try { images.push(await smallPhoto(p.url, 768)); } catch { /* 못 읽은 사진은 빼고 보낸다 */ }
+    }
+    const hasPhotos = images.length > 0;
+    const { parsed, model, imagesUsed } = await requestCloud(hasPhotos ? SYSTEM + PHOTO_RULE : SYSTEM,
+      buildText(product, profit, docsInline), hasPhotos ? PHOTO_SCHEMA : SCHEMA, signal, images);
+    if (product.photos.length && !imagesUsed) notices.push('무료 AI가 이번에는 상품 사진을 읽지 못해 입력한 글만으로 분석했습니다.');
+    else if (product.photos.length > images.length) notices.push(`사진은 앞의 ${images.length}장만 분석에 반영되었습니다.`);
+    const out = normalize(parsed, model, notices);
+    if (!imagesUsed) delete out.photo_review;
+    return out;
+  }
+
+  // AI에 보낼 사진을 작게 줄인다. (긴 변 maxSide px, JPEG data URL)
+  function smallPhoto(url, maxSide) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
   }
 
   // 사진·PDF를 못 읽는 모드용: 텍스트 자료만 앞부분을 잘라 프롬프트에 넣고, 빠진 자료를 알린다.
-  function textOnlyInput(product, modeName) {
+  function textOnlyInput(product, modeName, can = {}) {
     const notices = [];
-    if (product.photos.length) notices.push(`${modeName}에서는 상품 사진이 분석에 반영되지 않았습니다.`);
+    if (product.photos.length && !can.photos) notices.push(`${modeName}에서는 상품 사진이 분석에 반영되지 않았습니다.`);
     const pdfs = product.docs.filter(d => d.kind === 'pdf');
     if (pdfs.length) notices.push(`PDF 자료(${pdfs.map(d => d.name).join(', ')})는 ${modeName}에서 반영되지 않았습니다.`);
 
@@ -380,14 +435,14 @@ ${each.join('\n')}
   }
 
   // Cloudflare Worker(worker/worker.js)에 한 번 요청하고 JSON 응답을 돌려준다. (분석·판매 콘텐츠 공용)
-  async function requestCloud(system, text, schema, signal) {
+  async function requestCloud(system, text, schema, signal, images = []) {
     if (!WORKER_URL) throw new AIError('no-worker', '무료 AI 주소(js/config.js의 WORKER_URL)가 설정되지 않았습니다.');
     let res, data;
     try {
       res = await fetch(WORKER_URL, {
         method: 'POST', signal,
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ system, text, schema }),
+        body: JSON.stringify(images.length ? { system, text, schema, images } : { system, text, schema }),
       });
       data = await res.json().catch(() => null);
     } catch {
@@ -399,7 +454,7 @@ ${each.join('\n')}
       if (res.status === 429) throw new AIError('rate', data?.message || '오늘 무료 AI 사용량을 모두 썼습니다. 내일 다시 시도해 주세요.');
       throw new AIError(data?.error || 'api', data?.message || `무료 AI 요청이 실패했습니다. (${res.status})`);
     }
-    return { parsed: data.result, model: CLOUD_MODEL_LABEL };
+    return { parsed: data.result, model: CLOUD_MODEL_LABEL, imagesUsed: data.imagesUsed === true };
   }
 
   // Ollama 기본 API에 한 번 요청하고 JSON 응답을 돌려준다. (분석·판매 콘텐츠 공용)
@@ -492,6 +547,12 @@ ${each.join('\n')}
       model,
       notices,
     };
+    // 사진 검토: 사진을 함께 보낸 분석에만 있다.
+    const pr = r?.photo_review;
+    if (pr && typeof pr === 'object') {
+      out.photo_review = { good: strs(pr.good), bad: strs(pr.bad), tips: strs(pr.tips) };
+      if (!out.photo_review.good.length && !out.photo_review.bad.length && !out.photo_review.tips.length) delete out.photo_review;
+    }
     const EMPTY_CHECK = { '주요 특징': out.features, '장점': out.strengths, '단점': out.weaknesses, '강조할 장점과 근거': out.selling_points,
       '타깃 고객층': out.targets, '차별화 요소': out.differentiation, '위험요소': out.risks };
     const empty = Object.entries(EMPTY_CHECK).filter(([, v]) => !v.length).map(([k]) => `'${k}'`);

@@ -45,6 +45,7 @@ li + li { margin-top: 4px; }
 a { color: var(--accent); }
 .muted { color: var(--muted); }
 .small { font-size: 18px; }
+.photo-review-h { font-weight: 700; margin: 14px 0 4px; }
 .wrap { max-width: 1360px; margin: 0 auto; padding: 0 24px; }
 
 /* 입력 화면: 왼쪽 입력, 오른쪽 따라다니는 요약 (넓은 화면에서만) */

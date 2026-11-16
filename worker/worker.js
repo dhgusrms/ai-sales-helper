@@ -20,6 +20,9 @@ const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 const MAX_INPUT_CHARS = 40000;   // 요청 하나에 받을 최대 글자 수 (남용 방지)
 const MAX_OUTPUT_TOKENS = 6000;  // 답변 최대 길이
+const MAX_IMAGES = 3;              // 함께 받을 상품 사진 수
+const MAX_IMAGE_CHARS = 400000;    // 사진 한 장(data URL) 최대 글자 수 (약 300KB)
+const IMAGE_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 // 2026-11-13 실측: 'schema'는 Gemma 4가 공백을 끝없이 써서 6,000토큰에서 잘림(약 160초).
 // 'object'는 같은 분석을 약 23초, 약 50뉴런으로 정상 완료해 기본값으로 쓴다.
 const FORMAT = 'object';
@@ -47,6 +50,10 @@ export default {
     let body;
     try { body = await request.json(); } catch { return reply(400, { error: 'bad-request', message: '요청 형식이 올바르지 않습니다.' }); }
     const { system, text, schema } = body || {};
+    // 상품 사진(선택): data URL 문자열 배열. 형식이 맞는 것만 최대 3장 쓴다.
+    const images = (Array.isArray(body?.images) ? body.images : [])
+      .filter(u => typeof u === 'string' && u.length <= MAX_IMAGE_CHARS && IMAGE_RE.test(u))
+      .slice(0, MAX_IMAGES);
     // 응답 형식 강제 방식: 'schema'(JSON 스키마), 'object'(JSON만), 'none'(지시문만). 기본은 FORMAT.
     const format = ['schema', 'object', 'none'].includes(body?.format) ? body.format : FORMAT;
     if (typeof system !== 'string' || typeof text !== 'string' || !schema || typeof schema !== 'object') {
@@ -58,7 +65,7 @@ export default {
 
     const messages = [
       { role: 'system', content: `${system}\n\n반드시 주어진 JSON 형식으로만, 모든 내용을 한국어로 답하세요. JSON 외의 글은 쓰지 마세요.` },
-      { role: 'user', content: text },
+      { role: 'user', content: userContent(text, images) },
     ];
     // Gemma 4는 기본으로 '생각(추론)'을 먼저 길게 해서 느리고 답이 잘린다. 꺼서 바로 답하게 한다.
     const base = {
@@ -72,13 +79,24 @@ export default {
     const withSchema = { ...base, messages: [{ ...messages[0], content: `${messages[0].content}\n\n답변 JSON 스키마:\n${JSON.stringify(schema)}` }, messages[1]] };
 
     let out;
+    let imagesUsed = images.length > 0;
+    // 사진 없이 다시 보낼 때 쓰는 요청 (사진을 모델이 받지 못했을 때)
+    const textOnly = req => ({ ...req, messages: req.messages.map(m => (m.role === 'user' ? { ...m, content: text } : m)) });
+    const run = async req => {
+      try { return await env.AI.run(MODEL, req); } catch (e) {
+        if (isLimit(e) || !imagesUsed) throw e;
+        console.log(JSON.stringify({ imageFail: String(e?.message || e).slice(0, 300) }));
+        imagesUsed = false;
+        return env.AI.run(MODEL, textOnly(req));
+      }
+    };
     try {
       try {
-        out = await env.AI.run(MODEL, rf ? { ...(format === 'schema' ? base : withSchema), response_format: rf } : withSchema);
+        out = await run(rf ? { ...(format === 'schema' ? base : withSchema), response_format: rf } : withSchema);
       } catch (e) {
         if (isLimit(e) || !rf) throw e;
         // JSON 모드를 맞추지 못하면 형식 지정 없이 한 번 더 요청하고 직접 JSON을 꺼낸다.
-        out = await env.AI.run(MODEL, withSchema);
+        out = await run(imagesUsed ? withSchema : textOnly(withSchema));
       }
     } catch (e) {
       if (isLimit(e)) return reply(429, { error: 'daily-limit', message: '오늘 무료 AI 사용량을 모두 썼습니다. 한국 시간 오전 9시 이후에 다시 시도해 주세요.' });
@@ -92,9 +110,15 @@ export default {
       console.log(JSON.stringify({ fail: cut ? 'truncated' : 'parse', usage: out?.usage, head: raw.slice(0, 300), tail: raw.slice(-300) }));
       return reply(502, { error: cut ? 'truncated' : 'parse', usage: out?.usage, tail: raw.slice(-200), message: cut ? 'AI 답변이 너무 길어 중간에 끊겼습니다. 다시 시도해 주세요.' : 'AI 응답을 읽지 못했습니다. 다시 시도해 주세요.' });
     }
-    return reply(200, { result, model: MODEL, usage: out?.usage });
+    return reply(200, { result, model: MODEL, usage: out?.usage, imagesUsed });
   },
 };
+
+// 사진이 있으면 글과 사진을 함께 보내는 형식(OpenAI 방식)으로 만든다.
+function userContent(text, images) {
+  if (!images.length) return text;
+  return [{ type: 'text', text }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))];
+}
 
 function isLimit(e) {
   return /neuron|quota|daily|limit|4006|exceeded/i.test(String(e?.message || e));
