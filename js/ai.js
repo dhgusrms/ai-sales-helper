@@ -689,6 +689,23 @@ ${lines('종합 의견', [ai.summary])}${lines('장점', ai.strengths)}${lines('
   const TYPO_LABELS = { name: '상품명', description: '상품 설명', material: '재질', components: '구성품', certName: '인증 이름' };
 
   // fields: { name, description, ... } → [{ field, label, wrong, right, reason }]
+  // 상품명으로 대분류 추천: 그 판매처의 대분류 목록 안에서만 하나 고른다.
+  const CAT_SYSTEM = `당신은 온라인 쇼핑몰의 상품 카테고리 분류 도우미입니다.
+상품명을 보고, 주어진 대분류 목록 중 이 상품을 등록하기에 가장 알맞은 대분류 하나를 고릅니다.
+- category에는 목록에 있는 이름을 글자 그대로 씁니다. 목록에 없는 이름을 만들지 마세요.
+- 상품명만으로 무엇인지 알 수 없으면 category를 빈 문자열("")로 둡니다.`;
+  async function suggestCategory(name, platformLabel, mains, signal) {
+    if (!name || !mains?.length) return '';
+    const p = getProvider();
+    const request = p === 'qwen' ? requestQwen : p === 'cloud' ? requestCloud : requestClaude;
+    const schema = { type: 'object', properties: { category: { type: 'string', enum: [...mains, ''] } }, required: ['category'], additionalProperties: false };
+    const text = `판매처: ${platformLabel}\n상품명: ${name}\n\n대분류 목록:\n${mains.map(m => `- ${m}`).join('\n')}`;
+    const { parsed } = await request(CAT_SYSTEM, text, schema, signal);
+    const c = typeof parsed?.category === 'string' ? parsed.category.trim() : '';
+    const flat = v => v.replace(/\s/g, '');
+    return mains.includes(c) ? c : (c && mains.find(m => flat(m) === flat(c))) || '';
+  }
+
   async function proofread(fields, signal) {
     const filled = Object.entries(fields).filter(([k, v]) => TYPO_LABELS[k] && v && v.trim());
     if (!filled.length) return [];
@@ -743,5 +760,5 @@ ${lines('종합 의견', [ai.summary])}${lines('장점', ai.strengths)}${lines('
   // 사용자가 '취소하고 돌아가기'를 누른 경우
   const cancelled = () => new AIError('cancelled', '분석을 취소했습니다.');
 
-  return { analyze, generateContent, proofread, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
+  return { analyze, generateContent, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
 })();

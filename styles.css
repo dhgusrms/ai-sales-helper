@@ -45,6 +45,9 @@ li + li { margin-top: 4px; }
 a { color: var(--accent); }
 .muted { color: var(--muted); }
 .small { font-size: 18px; }
+.cat-suggest { margin: -6px 0 14px; padding: 10px 14px; border-radius: 10px; background: var(--accent-weak); font-size: 19px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cat-suggest.is-same { background: var(--subtle); color: var(--muted); }
+.cat-suggest .link-btn { font-weight: 700; text-decoration: underline; }
 .photo-review-h { font-weight: 700; margin: 14px 0 4px; }
 .wrap { max-width: 1360px; margin: 0 auto; padding: 0 24px; }
 

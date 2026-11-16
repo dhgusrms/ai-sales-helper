@@ -433,7 +433,64 @@
     applyPlatformFee(true);
     liveCalc();
   });
-  form.elements.catMain.addEventListener('change', () => { fillSubs(); showCatNotice(''); applyPlatformFee(true); });
+  form.elements.catMain.addEventListener('change', () => { fillSubs(); showCatNotice(''); applyPlatformFee(true); showCatSuggest(); });
+
+  /* ---------- 상품명으로 대분류 추천 ---------- */
+  // 상품명을 쓰고 다음 칸으로 넘어가면 AI가 그 판매처의 대분류 중 하나를 추천한다. 고른 값은 덮어쓰지 않는다.
+  let catCtrl = null;
+  let catKey = '';
+  let catPick = '';
+  function hideCatSuggest() {
+    catCtrl?.abort();
+    catCtrl = null;
+    catKey = '';
+    catPick = '';
+    $('#catSuggest').hidden = true;
+  }
+  function showCatSuggest() {
+    const box = $('#catSuggest');
+    if (!catPick) return;
+    const same = form.elements.catMain.value === catPick;
+    box.classList.toggle('is-same', same);
+    box.innerHTML = same
+      ? `✓ AI 추천 대분류와 같아요: <b>${esc(catPick)}</b>`
+      : `AI 추천 대분류: <b>${esc(catPick)}</b> <button type="button" class="link-btn" data-apply-cat>적용</button>`;
+    box.hidden = false;
+  }
+  async function suggestCategory() {
+    const id = form.elements.platform.value;
+    const name = form.elements.name.value.trim();
+    if (id === 'custom' || name.length < 2 || !LETTER_RE.test(name)) { hideCatSuggest(); return; }
+    const key = `${id}|${name}`;
+    if (key === catKey) return;
+    hideCatSuggest();
+    catKey = key;
+    const ctrl = catCtrl = new AbortController();
+    const box = $('#catSuggest');
+    box.classList.remove('is-same');
+    box.innerHTML = '<span class="muted">상품명에 맞는 대분류를 찾고 있어요...</span>';
+    box.hidden = false;
+    try {
+      const cat = await AI.suggestCategory(name, Platforms.label(id), Platforms.mains(id), ctrl.signal);
+      if (ctrl !== catCtrl) return;
+      catCtrl = null;
+      if (!cat) { box.hidden = true; return; }
+      catPick = cat;
+      showCatSuggest();
+    } catch {
+      if (ctrl !== catCtrl) return;
+      catCtrl = null;
+      catKey = '';
+      box.hidden = true; // 추천은 보조 기능이라 실패해도 조용히 숨긴다
+    }
+  }
+  form.elements.name.addEventListener('change', suggestCategory);
+  form.elements.platform.addEventListener('change', suggestCategory);
+  $('#catSuggest').addEventListener('click', e => {
+    if (!e.target.closest('[data-apply-cat]') || !catPick) return;
+    form.elements.catMain.value = catPick;
+    form.elements.catMain.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   form.elements.catSub.addEventListener('change', () => applyPlatformFee(true));
   fillMains();
 
@@ -448,6 +505,7 @@
     $('#formError').textContent = '';
     $('#formWarn').hidden = true;
     typoCtrl?.abort();
+    hideCatSuggest();
     typoItems = [];
     $('#typoBox').hidden = true;
     updateCertUI();
