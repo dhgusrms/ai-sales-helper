@@ -593,8 +593,6 @@ ${each.join('\n')}
   /* ---------- 판매 콘텐츠 (상품명·키워드·상세페이지 구성안·홍보문구) ---------- */
   // 분석과 따로 요청한다. 사용자가 확인·수정한 분석 결과를 바탕으로 만든다.
   const DETAIL_SECTIONS = ['대표 사진과 핵심 장점', '구매자의 고민', '제품 강점', '근거·규격·인증', '사용 안내·주의사항'];
-  // 상세페이지 양식(js/detail.js의 TYPES)과 같은 이름
-  const PAGE_TYPES = ['food', 'beauty', 'fashion', 'digital', 'handmade', 'living', 'basic'];
   const CONTENT_SCHEMA = {
     type: 'object',
     properties: {
@@ -607,13 +605,12 @@ ${each.join('\n')}
         type: 'array',
         items: { type: 'object', properties: { section: str, title: str, content: str, evidence: str }, required: ['section', 'title', 'content', 'evidence'], additionalProperties: false },
       }),
-      page_type: { type: 'string', enum: PAGE_TYPES },
       promo_copies: filled({
         type: 'array',
         items: { type: 'object', properties: { channel: str, text: str }, required: ['channel', 'text'], additionalProperties: false },
       }),
     },
-    required: ['product_names', 'keywords', 'detail_page', 'page_type', 'promo_copies'],
+    required: ['product_names', 'keywords', 'detail_page', 'promo_copies'],
     additionalProperties: false,
   };
 
@@ -634,7 +631,6 @@ ${each.join('\n')}
   title에는 상세페이지에 크게 보일 그 블록의 제목을 이 상품에 맞춰 15자 안팎으로 씁니다. 예) 수납 트레이의 고민 블록 "책상 위, 늘 어수선하셨죠?", 쿠키의 강점 블록 "매일 아침 굽는 버터 쿠키", 화장품의 사용 안내 블록 "이렇게 바르세요".
   content에는 그 블록에 실제로 넣을 문구 2~3문장을 씁니다. evidence에는 그 내용의 근거(예: "인증 정보: KC 인증", "경쟁상품 리뷰의 '냄새가 심하다' 불만")를 씁니다.
   구매자의 고민 블록은 경쟁상품 리뷰의 불만에서, 근거·규격·인증 블록은 입력된 재질·크기·구성품·인증에서만 가져옵니다. 근거가 없으면 evidence에 "확인 필요"라고 씁니다.
-- page_type: 상세페이지 양식. 상품 종류에 맞게 food(식품), beauty(뷰티·화장품), fashion(패션·잡화), digital(디지털·가전), handmade(핸드메이드·선물), living(생활·인테리어), basic(그 밖) 중 하나를 씁니다.
 - promo_copies: 정확히 3개. channel은 순서대로 "인스타그램 게시글", "검색광고 문구", "한 줄 카피"를 씁니다.
   인스타그램 게시글은 2~3문장과 해시태그 3~5개, 검색광고 문구는 제목 15자 이내와 설명 45자 이내를 " / "로 구분, 한 줄 카피는 20자 안팎의 한 문장입니다.
 
@@ -858,7 +854,6 @@ ${lines('상품명 후보', (c.product_names || []).map(x => x.name))}${lines('�
       product_names: arr(r?.product_names).map(x => ({ name: s(x?.name), reason: s(x?.reason) })).filter(x => x.name),
       keywords: arr(r?.keywords).map(s).map(k => k.replace(/^#/, '').trim()).filter(Boolean),
       detail_page: arr(r?.detail_page).map(x => ({ section: s(x?.section), title: s(x?.title).trim().slice(0, 40), content: s(x?.content), evidence: s(x?.evidence) || '확인 필요' })).filter(x => x.content),
-      page_type: PAGE_TYPES.includes(r?.page_type) ? r.page_type : '',
       promo_copies: arr(r?.promo_copies).map(x => ({ channel: s(x?.channel), text: s(x?.text) })).filter(x => x.text),
       model,
       notices: [],
