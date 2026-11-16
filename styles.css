@@ -78,6 +78,8 @@ a { color: var(--accent); }
 .pdf-mode #view-result { width: 733px; max-width: 733px; margin: 0; }
 /* PDF에서는 점수 목록을 한 줄 전체로 넓게(막대가 잘 보이게), 레이더 차트는 그 아래 가운데에 */
 .pdf-mode .scores { grid-template-columns: 1fr; gap: 12px; }
+/* 차트가 어떤 경우에도 칸보다 넓어지지 않게(비율은 유지) */
+.pdf-mode .chart-box canvas { max-width: 100% !important; height: auto !important; }
 .pdf-mode .scores .chart-box { width: 100%; max-width: 460px; margin: 0 auto; }
 .pdf-mode .score-row { grid-template-columns: 150px 1fr 50px; }
 /* PDF 도구(html2pdf)는 내용을 화면 가운데에 놓고 960px 창 기준으로 찍는다.
