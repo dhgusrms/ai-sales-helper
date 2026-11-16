@@ -684,6 +684,7 @@
   const isBusy = () => !!loadingCtrl;
   const ANALYZE_TIPS = ['상품의 주요 특징과 장단점', '타깃 고객층과 시장성', '차별화 요소와 판매 위험요소', '종합 점수와 판정 근거'];
   const CONTENT_TIPS = ['상품명 후보', '검색 키워드', '상세페이지 구성안', '홍보문구'];
+  const DETAIL_TIPS = ['상품에 맞는 섹션 고르기', '섹션 순서와 제목 정하기', '핵심 장점 자세히 쓰기', '자주 묻는 질문과 관리 방법'];
   $('#cancelLoading').addEventListener('click', () => {
     if (!loadingCtrl) return;
     $('#cancelLoading').disabled = true;
@@ -1180,24 +1181,64 @@
   let detailPhotos = [null, null, null];
   let detailPhotosFor = null; // 어느 기록의 사진인지
 
-  function openDetail() {
-    if (!current?.ai?.content) return;
-    if (!current.ai.detailPage) {
-      current.ai.detailPage = DetailPage.buildModel(current.product, current.ai.content, current.ai);
-      current.saved = Store.save(current);
-    }
-    if (detailPhotosFor !== current.id) {
+  function preparePhotos(rec) {
+    if (detailPhotosFor !== rec.id) {
       // 방금 분석한 상품이면 입력 화면에 올린 사진을 그대로 쓴다
-      detailPhotos = current.id === formRecordId ? [0, 1, 2].map(i => photos[i] || null) : [null, null, null];
-      detailPhotosFor = current.id;
+      detailPhotos = rec.id === formRecordId ? [0, 1, 2].map(i => photos[i] || null) : [null, null, null];
+      detailPhotosFor = rec.id;
     }
+  }
+  function showDetail() {
     renderDetailPanel();
     renderDetailPreview();
     go('detail');
   }
 
+  function openDetail() {
+    if (!current?.ai?.content) return;
+    preparePhotos(current);
+    if (!current.ai.detailPage) { makeDetailPage(current); return; } // 처음 열면 AI가 이 상품에 맞춰 새로 설계한다
+    showDetail();
+  }
+
+  // AI가 상품 정보·분석·판매 콘텐츠 초안(·사진)을 보고 상세페이지 전체를 설계한다. 실패하면 기본 양식으로 만든다.
+  async function makeDetailPage(rec) {
+    if (!AI.isReady()) { openSettings(); return; }
+    if (isBusy()) { alert('AI가 다른 작업을 하고 있어요. 오른쪽 아래 상자에서 끝나면 다시 눌러 주세요.'); return; }
+    preparePhotos(rec);
+    const urls = rec.id === detailPhotosFor ? detailPhotos.map(p => p?.url) : [];
+    const product = { ...rec.product, photos: [], docs: [] };
+    $('#loadingText').textContent = 'AI가 이 상품에 맞는 상세페이지를 만들고 있습니다';
+    const signal = startLoading({ tips: DETAIL_TIPS });
+    const open = () => { current = rec; preparePhotos(rec); showDetail(); };
+    // 버튼을 누른 화면(결과·상세페이지)에 그대로 있으면 끝나자마자 연다
+    const stayed = () => current === rec && (!$('#view-result').hidden || !$('#view-detail').hidden);
+    try {
+      const out = await AI.generateDetailPage(product, rec.profit, rec.ai, urls, signal);
+      rec.ai.detailPage = DetailPage.fromAI(out, rec.product);
+      rec.saved = Store.save(rec);
+      if (stayed()) { stopLoading(); open(); return; }
+      finishLoading(`'${rec.product.name}' 상세페이지를 만들었어요`, { openLabel: '상세페이지 보기', onOpen: open });
+    } catch (ex) {
+      if (signal.aborted) { stopLoading(); return; }
+      const fallback = !rec.ai.detailPage;
+      if (fallback) {
+        rec.ai.detailPage = DetailPage.buildModel(rec.product, rec.ai.content, rec.ai);
+        rec.saved = Store.save(rec);
+      }
+      finishLoading(`AI 상세페이지를 만들지 못했어요. ${fallback ? '기본 양식으로 먼저 만들었어요. ' : ''}${ex.message}`,
+        { fail: true, openLabel: '상세페이지 보기', onOpen: open });
+    }
+  }
+
   function renderDetailPanel() {
     const m = current.ai.detailPage;
+    const ai = m.v === 2;
+    $('#dpTypeCard').hidden = ai; // AI 상세페이지는 AI가 구성을 정하므로 양식 고르기가 없다
+    $('#dpAiInfo').innerHTML = ai
+      ? `AI가 이 상품에 맞춰 <b>${m.sections.length}개 섹션</b>으로 짰어요: ${m.sections.map(x => esc(DetailPage.KIND_LABELS[x.kind] || x.kind)).join(' → ')}`
+      : '지금은 정해진 양식에 판매 콘텐츠 문장을 넣은 기본 상세페이지예요. AI로 만들면 이 상품에 맞춰 구성과 내용을 더 풍부하게 짜요. (30초~1분)';
+    $('#dpRegen').textContent = ai ? 'AI로 다시 만들기' : 'AI로 새로 만들기';
     const type = DetailPage.TYPES[m.type] ? m.type : 'basic';
     $('#dpTypes').innerHTML = DetailPage.TYPE_KEYS.map(id =>
       `<button type="button" class="dp-theme dp-type ${type === id ? 'is-active' : ''}" data-type="${id}">${DetailPage.TYPES[id].label}</button>`).join('');
@@ -1221,6 +1262,11 @@
     $('#dpPreview').innerHTML = DetailPage.render(current.ai.detailPage, detailPhotos);
   }
 
+  $('#dpRegen').addEventListener('click', () => {
+    if (current.ai.detailPage?.v === 2 && !confirm('AI가 상세페이지를 처음부터 다시 만들어요. 지금 고친 글자는 사라집니다. 다시 만들까요?')) return;
+    document.activeElement?.blur();
+    makeDetailPage(current);
+  });
   $('#dpTypes').addEventListener('click', e => {
     const id = e.target.closest('[data-type]')?.dataset.type;
     if (!id) return;

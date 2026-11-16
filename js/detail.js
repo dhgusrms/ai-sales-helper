@@ -153,6 +153,7 @@ const DetailPage = (() => {
   }
 
   function render(m, photos) {
+    if (m.v === 2) return renderAI(m, photos);
     const T = TYPES[m.type] || TYPES.basic;
     const t = THEMES[m.theme] || THEMES[T.theme];
     const specsTitle = m.specsTitle || '제품 정보';
@@ -182,6 +183,75 @@ const DetailPage = (() => {
     return `<div class="dp dp-type-${m.type || 'basic'}" style="--dp-main:${t.main};--dp-soft:${t.soft};width:${WIDTH}px">${hero}${body}</div>`;
   }
 
+  /* ---------- AI가 설계한 상세페이지 (v: 2) ---------- */
+  // AI가 섹션 종류·순서·제목·분량을 정한다. 제품 정보 표만은 사용자가 입력한 값으로 채운다.
+  function specsOf(product) {
+    return [['재질', product.material], ['크기', product.size], ['구성품', product.components], ['인증', product.certification]]
+      .filter(([, v]) => v).map(([k, v]) => ({ k, v }));
+  }
+  function fromAI(out, product) {
+    return { v: 2, theme: out.theme || 'navy', hero: out.hero, sections: out.sections, specs: specsOf(product), model: out.model, madeAt: new Date().toISOString() };
+  }
+  // 섹션 종류 이름 (편집 화면의 구성 목록에 쓴다)
+  const KIND_LABELS = { empathy: '고민 공감', points: '핵심 장점', detail: '디테일', scenes: '이런 분께', howto: '사용 방법', specs: '제품 정보', faq: '자주 묻는 질문', care: '관리·주의', closing: '마무리' };
+
+  function renderAI(m, photos) {
+    const t = THEMES[m.theme] || THEMES.navy;
+    const h = m.hero || {};
+    const badges = (h.badges || []).length
+      ? `<div class="dp-badges">${h.badges.map((b, i) => text(`hero.badges.${i}`, b, 'span')).join('')}</div>` : '';
+    const hero = `<section class="dp-hero">${photo(photos, 0)}<div class="dp-hero-text">
+      ${h.eyebrow ? text('hero.eyebrow', h.eyebrow, 'p').replace('class="dp-ed"', 'class="dp-ed dp-eyebrow"') : ''}
+      ${text('hero.headline', h.headline, 'h1')}${h.subcopy ? text('hero.subcopy', h.subcopy, 'p') : ''}${badges}</div></section>`;
+    // 사진 2장(강점·규격)은 처음 나오는 핵심 장점(없으면 디테일) 섹션과 제품 정보 섹션 아래에 둔다
+    const photo1At = m.sections.findIndex(x => x.kind === 'points') >= 0
+      ? m.sections.findIndex(x => x.kind === 'points') : m.sections.findIndex(x => x.kind === 'detail');
+    let soft = 0;
+    const body = m.sections.map((sec, i) => {
+      const p = `sections.${i}`;
+      const it = (j, key, tag = 'span') => text(`${p}.items.${j}.${key}`, sec.items[j][key], tag);
+      let inner = '';
+      if (sec.kind === 'empathy') {
+        inner = `<ul class="dp-worries">${sec.items.map((x, j) => `<li>${it(j, x.text ? 'text' : 'title')}</li>`).join('')}</ul>`;
+      } else if (sec.kind === 'points') {
+        inner = `<ol class="dp-feats">${sec.items.map((x, j) => `<li><span class="dp-feat-no">${String(j + 1).padStart(2, '0')}</span>
+          <div>${x.title ? it(j, 'title', 'h3') : ''}${it(j, 'text', 'p')}</div></li>`).join('')}</ol>`;
+      } else if (sec.kind === 'detail') {
+        inner = `<div class="dp-tiles">${sec.items.map((x, j) => `<div class="dp-tile">${x.title ? it(j, 'title', 'h3') : ''}${it(j, 'text', 'p')}</div>`).join('')}</div>`;
+      } else if (sec.kind === 'scenes') {
+        inner = `<ul class="dp-checks">${sec.items.map((x, j) => `<li><span class="dp-check" aria-hidden="true">✓</span>
+          <div>${x.title ? it(j, 'title', 'b') : ''}${x.text ? ` ${it(j, 'text')}` : ''}</div></li>`).join('')}</ul>`;
+      } else if (sec.kind === 'howto') {
+        inner = `<ol class="dp-steps">${sec.items.map((x, j) => `<li><span class="dp-step">STEP ${j + 1}</span>
+          <div>${x.title ? it(j, 'title', 'b') : ''}${x.text ? ` ${it(j, 'text')}` : ''}</div></li>`).join('')}</ol>`;
+      } else if (sec.kind === 'specs') {
+        if (!m.specs.length) return '';
+        inner = `<table class="dp-specs">${m.specs.map((s, j) => `<tr><th>${esc(s.k)}</th><td>${text(`specs.${j}.v`, s.v)}</td></tr>`).join('')}</table>`;
+      } else if (sec.kind === 'faq') {
+        inner = `<dl class="dp-faq">${sec.items.map((x, j) => `<div><dt><i class="dp-qa">Q</i>${it(j, 'title')}</dt><dd><i class="dp-qa">A</i>${it(j, 'text')}</dd></div>`).join('')}</dl>`;
+      } else if (sec.kind === 'care') {
+        inner = `<ul class="dp-guide">${sec.items.map((x, j) => `<li>${it(j, x.text ? 'text' : 'title')}</li>`).join('')}</ul>`;
+      } else if (sec.kind === 'closing') {
+        return `<section class="dp-sec dp-closing">${text(`${p}.title`, sec.title, 'h2')}${sec.lead ? text(`${p}.lead`, sec.lead, 'p') : ''}</section>`;
+      }
+      const pic = i === photo1At ? photo(photos, 1) : sec.kind === 'specs' ? photo(photos, 2) : '';
+      const cls = soft++ % 2 === 1 ? 'dp-sec dp-soft' : 'dp-sec';
+      return `<section class="${cls} dp-k-${sec.kind}">${text(`${p}.title`, sec.title, 'h2')}
+        ${sec.lead ? text(`${p}.lead`, sec.lead, 'p').replace('class="dp-ed"', 'class="dp-ed dp-lead"') : ''}${inner}${pic}</section>`;
+    }).join('');
+    return `<div class="dp dp-ai" style="--dp-main:${t.main};--dp-soft:${t.soft};width:${WIDTH}px">${hero}${body}</div>`;
+  }
+
+  // 점검용: 모델 안의 모든 문장
+  function allTexts(m) {
+    if (m.v === 2) {
+      const h = m.hero || {};
+      return [h.eyebrow, h.headline, h.subcopy, ...(h.badges || []),
+        ...m.sections.flatMap(x => [x.title, x.lead, ...x.items.flatMap(i => [i.title, i.text])]), ...m.specs.map(s => s.v)].filter(Boolean);
+    }
+    return [m.title, m.hero, m.worriesTitle, m.strengthsTitle, m.guideTitle, ...m.worries, ...m.strengths, ...m.specs.map(s => s.v), ...m.guide].filter(Boolean);
+  }
+
   // 편집한 글자를 모델에 반영한다. '확인 필요' 표시는 [확인 필요] 글자로 되돌린다.
   function readText(el) {
     const clone = el.cloneNode(true);
@@ -198,13 +268,15 @@ const DetailPage = (() => {
   // 내려받기 전 점검: 남은 '확인 필요' 표시, 과장 표현, 빈 사진 칸
   const RISKY_WORDS = ['최고', '최상', '1위', '최초', '유일', '완벽', '100%', '무해', '무독성', '부작용 없', '절대', '치료', '예방', '효능'];
   function check(m, photos, product) {
-    const all = [m.title, m.hero, m.worriesTitle, m.strengthsTitle, m.guideTitle, ...m.worries, ...m.strengths, ...m.specs.map(s => s.v), ...m.guide].filter(Boolean);
+    const all = allTexts(m);
     const source = [product.name, product.description, product.material, product.size, product.components, product.certification].join(' ');
     const hasVerify = /[[(]확인 ?필요[\])]/; // 전역 플래그 없는 정규식이라 test를 반복해도 안전하다
+    // AI 상세페이지는 제품 정보 섹션이 있을 때만 규격 사진 칸을 쓴다
+    const usedSlots = m.v === 2 ? [true, m.sections.some(x => x.kind === 'points' || x.kind === 'detail'), m.specs.length > 0] : [true, true, true];
     return {
       verify: all.filter(t => hasVerify.test(t)).length,
       risky: RISKY_WORDS.filter(w => !source.includes(w) && all.some(t => t.includes(w))),
-      emptyPhotos: SLOT_LABELS.filter((_, i) => !photos[i]),
+      emptyPhotos: SLOT_LABELS.filter((_, i) => usedSlots[i] && !photos[i]),
     };
   }
 
@@ -228,5 +300,5 @@ const DetailPage = (() => {
     }
   }
 
-  return { THEMES, TYPES, TYPE_KEYS, SLOT_LABELS, buildModel, applyType, guessType, render, readText, setPath, check, exportPng };
+  return { THEMES, TYPES, TYPE_KEYS, SLOT_LABELS, KIND_LABELS, buildModel, fromAI, applyType, guessType, render, readText, setPath, check, exportPng };
 })();

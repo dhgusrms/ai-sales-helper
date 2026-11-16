@@ -658,6 +658,131 @@ ${lines('종합 의견', [ai.summary])}${lines('장점', ai.strengths)}${lines('
     return normalizeContent(parsed, model, product);
   }
 
+  /* ---------- AI 상세페이지 ---------- */
+  // 정해진 양식에 문장을 끼워 넣는 대신, AI가 이 상품에 맞는 상세페이지 구성(섹션 종류·순서·분량·제목)을 직접 짠다.
+  // 섹션 종류: 그리는 모양이 정해져 있고(js/detail.js), 어떤 걸 몇 번째에 쓸지는 AI가 고른다.
+  const DETAIL_KINDS = ['empathy', 'points', 'detail', 'scenes', 'howto', 'specs', 'faq', 'care', 'closing'];
+  const DETAIL_THEMES = ['navy', 'green', 'coral', 'orange', 'pink', 'blue', 'black'];
+  const DETAIL_SYSTEM = `당신은 한국 온라인 쇼핑몰(스마트스토어, 쿠팡 등)의 상세페이지를 기획하고 카피를 쓰는 전문가입니다.
+주어진 상품 정보, 분석 결과, 판매 콘텐츠 초안{{PHOTO}}를 바탕으로, 이 상품만을 위한 상세페이지 전체를 설계합니다.
+같은 틀을 반복하지 말고, 이 상품을 사는 사람이 무엇을 궁금해하고 무엇에 끌리는지 생각해 섹션의 종류·순서·분량을 정합니다.
+
+[섹션 종류 kind]
+- empathy: 구매자의 고민·불편에 공감. items에 구매자가 실제로 할 법한 말 3~4개(text만, title은 빈 문자열)
+- points: 핵심 장점. items 3~4개. title은 장점을 한마디로(12자 안팎), text는 그 장점이 구매자에게 주는 이득과 근거 2~3문장
+- detail: 소재·마감·디자인 등 가까이 들여다보는 부분. items 2~3개(title + text 1~2문장)
+- scenes: 이런 분께·이런 곳에 추천. items 3~4개(title은 상황이나 사람, text는 1문장)
+- howto: 사용 방법. items 3~5단계(title은 단계 이름, text는 1문장)
+- specs: 제품 정보 표. 표 내용은 사용자가 입력한 값으로 자동으로 채우므로 items는 빈 배열, title만 씁니다.
+- faq: 자주 묻는 질문. items 3~4개(title은 질문, text는 답 1~2문장). 입력 정보로 답할 수 없는 질문은 넣지 않습니다.
+- care: 관리 방법·주의사항. items 3~5개(text만)
+- closing: 마지막 구매 유도. lead에 마무리 문장 1~2문장, items는 빈 배열
+
+[구성 규칙]
+- sections는 6~9개. points와 specs는 꼭 넣고, 나머지는 이 상품에 필요한 것만 고릅니다. 같은 kind를 두 번 쓰지 않습니다.
+- 순서도 상품에 맞게 정합니다. 예) 식품: points → detail → scenes → specs → care / 생활용품: empathy → points → howto → specs → faq
+- 각 섹션 title은 이 상품에 맞춘 문구로 15자 안팎 (예: "샤워 후 10초면 끝", "물때 걱정, 이제 그만"). "제품 강점" 같은 뻔한 제목은 피합니다.
+- lead는 섹션 제목 아래 짧은 소개 1문장(없으면 빈 문자열).
+- hero: eyebrow는 상품을 한마디로 소개하는 짧은 머리말(12자 안팎), headline은 가장 큰 제목(20자 안팎), subcopy는 1~2문장, badges는 핵심 특징 2~3개(각 8자 안팎).
+- theme: 상품 분위기에 맞는 색. navy(차분·신뢰), green(자연·원목·친환경), coral(따뜻함·선물), orange(식품·활기), pink(뷰티·여성), blue(디지털·청결), black(패션·고급) 중 하나.
+
+[사실 규칙]
+- 입력 정보와 분석 결과에 있는 사실만 씁니다. 수치·성능·효과·인증·수상·판매량·후기를 지어내지 마세요.
+- 이 상품에 대한 내용인데 입력 정보로 확인되지 않는 것은 문장 끝에 [확인 필요]를 붙입니다.
+- 가격·할인·배송 약속은 쓰지 않습니다. '최고', '1위', '완벽', '100%', '무독성', '치료', '효능' 같은 과장·규제 표현을 쓰지 않습니다.
+- 사진이 있으면 사진에서 보이는 색·모양·마감을 문장에 활용하되, 보이지 않는 품질은 단정하지 않습니다.
+- 모두 자연스러운 한국어로, 판매자가 그대로 올릴 수 있는 완성된 문장으로 씁니다.`;
+  const DETAIL_SCHEMA = (() => {
+    const str = { type: 'string' };
+    const item = { type: 'object', properties: { title: str, text: str }, required: ['title', 'text'], additionalProperties: false };
+    return {
+      type: 'object',
+      properties: {
+        theme: { type: 'string', enum: DETAIL_THEMES },
+        hero: {
+          type: 'object',
+          properties: { eyebrow: str, headline: str, subcopy: str, badges: { type: 'array', items: str } },
+          required: ['eyebrow', 'headline', 'subcopy', 'badges'],
+          additionalProperties: false,
+        },
+        sections: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { kind: { type: 'string', enum: DETAIL_KINDS }, title: str, lead: str, items: { type: 'array', items: item } },
+            required: ['kind', 'title', 'lead', 'items'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['theme', 'hero', 'sections'],
+      additionalProperties: false,
+    };
+  })();
+
+  function buildDetailText(product, profit, ai) {
+    const lines = (title, items) => items?.length ? `[${title}]\n${items.map(x => `- ${x}`).join('\n')}\n` : '';
+    const c = ai.content || {};
+    return `${buildText(product, profit)}
+
+=== 분석 결과 ===
+${lines('종합 의견', [ai.summary])}${lines('주요 특징', ai.features)}${lines('장점', ai.strengths)}${lines('단점(구매자가 걱정할 점)', ai.weaknesses)}${lines('강조할 장점과 근거', (ai.selling_points || []).map(x => `${x.point} (근거: ${x.evidence})`))}${lines('타깃 고객층', (ai.targets || []).map(t => `${t.segment}: ${t.reason}`))}${lines('사진으로 본 제품', ai.photo_review ? [...ai.photo_review.good, ...ai.photo_review.bad] : [])}
+=== 판매 콘텐츠 초안 ===
+${lines('상품명 후보', (c.product_names || []).map(x => x.name))}${lines('검색 키워드', c.keywords)}${lines('상세페이지 구성안', (c.detail_page || []).map(x => `${x.section}${x.title ? ` "${x.title}"` : ''}: ${x.content}`))}${lines('홍보 문구', (c.promo_copies || []).map(x => x.text))}
+위 정보로 이 상품의 상세페이지 전체를 설계해 주세요. 판매 콘텐츠 초안의 좋은 문장은 살리고, 부족한 부분은 분석 결과로 채워 더 풍부하게 만듭니다.`;
+  }
+
+  function normalizeDetail(r, product) {
+    const s = v => (typeof v === 'string' ? v.replace(/\s*[[(](일반|입력) ?정보[\])]/g, '').trim() : '');
+    const arr = v => (Array.isArray(v) ? v : []);
+    const seen = new Set();
+    const sections = arr(r?.sections)
+      .map(x => ({
+        kind: DETAIL_KINDS.includes(x?.kind) ? x.kind : '',
+        title: s(x?.title).slice(0, 40),
+        lead: s(x?.lead),
+        items: arr(x?.items).map(i => ({ title: s(i?.title).slice(0, 60), text: s(i?.text) })).filter(i => i.title || i.text).slice(0, 6),
+      }))
+      .filter(x => x.kind && !seen.has(x.kind) && seen.add(x.kind))
+      .filter(x => x.kind === 'specs' || x.kind === 'closing' ? true : x.items.length);
+    // 제품 정보 표는 AI가 빼먹어도 넣는다 (사용자가 입력한 사실만 들어가는 칸)
+    if (!sections.some(x => x.kind === 'specs')) {
+      const at = sections.findIndex(x => x.kind === 'faq' || x.kind === 'care' || x.kind === 'closing');
+      sections.splice(at < 0 ? sections.length : at, 0, { kind: 'specs', title: '제품 정보', lead: '', items: [] });
+    }
+    const h = r?.hero || {};
+    return {
+      theme: DETAIL_THEMES.includes(r?.theme) ? r.theme : '',
+      hero: {
+        eyebrow: s(h.eyebrow).slice(0, 30),
+        headline: s(h.headline) || product.name,
+        subcopy: s(h.subcopy),
+        badges: arr(h.badges).map(s).filter(Boolean).slice(0, 3),
+      },
+      sections,
+    };
+  }
+
+  async function generateDetailPage(product, profit, ai, photoUrls, signal) {
+    const p = getProvider();
+    const images = [];
+    if (p === 'cloud') {
+      for (const url of (photoUrls || []).filter(Boolean).slice(0, 3)) {
+        try { images.push(await smallPhoto(url, 768)); } catch { /* 못 읽은 사진은 빼고 보낸다 */ }
+      }
+    }
+    const system = DETAIL_SYSTEM.replace('{{PHOTO}}', images.length ? ', 상품 사진' : '');
+    const text = buildDetailText(product, profit, ai);
+    const { parsed, model } = p === 'qwen' ? await requestQwen(system, text, DETAIL_SCHEMA, signal)
+      : p === 'cloud' ? await requestCloud(system, text, DETAIL_SCHEMA, signal, images)
+        : await requestClaude(system, text, DETAIL_SCHEMA, signal);
+    const out = normalizeDetail(parsed, product);
+    if (out.sections.filter(x => x.kind !== 'specs').length < 3) {
+      throw new AIError('parse', 'AI가 상세페이지를 충분히 만들지 못했습니다. 다시 시도해 주세요.');
+    }
+    return { ...out, model };
+  }
+
   /* ---------- 오타·맞춤법 검사 ---------- */
   // 사용자가 쓴 글에서 명백한 오타와 맞춤법만 찾는다. 문장을 다듬거나 내용을 바꾸지 않는다.
   const TYPO_SYSTEM = `당신은 한국어 맞춤법 검사기입니다. 온라인 판매자가 상품 등록 화면에 쓴 글에서 오타와 맞춤법 오류만 찾습니다.
@@ -760,5 +885,5 @@ ${lines('종합 의견', [ai.summary])}${lines('장점', ai.strengths)}${lines('
   // 사용자가 '취소하고 돌아가기'를 누른 경우
   const cancelled = () => new AIError('cancelled', '분석을 취소했습니다.');
 
-  return { analyze, generateContent, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
+  return { analyze, generateContent, generateDetailPage, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
 })();
