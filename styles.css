@@ -71,7 +71,12 @@ a { color: var(--accent); }
   .summary { display: none; }
 }
 /* PDF는 예전 너비로 만들어 글자 크기를 유지한다 */
-.pdf-mode #view-result { max-width: 928px; margin: 0 auto; }
+/* PDF(A4, 좌우 여백 8mm) 안쪽 폭은 733px. 화면도 그 폭으로 맞춰야 차트가 넘치거나 점수 막대가 사라지지 않는다. */
+.pdf-mode #view-result { width: 733px; max-width: 733px; margin: 0; }
+/* PDF에서는 점수 목록을 한 줄 전체로 넓게(막대가 잘 보이게), 레이더 차트는 그 아래 가운데에 */
+.pdf-mode .scores { grid-template-columns: 1fr; gap: 12px; }
+.pdf-mode .scores .chart-box { width: 100%; max-width: 460px; margin: 0 auto; }
+.pdf-mode .score-row { grid-template-columns: 150px 1fr 50px; }
 /* PDF 도구(html2pdf)는 내용을 화면 가운데에 놓고 960px 창 기준으로 찍는다.
    창이 960px보다 넓으면 위치가 어긋나 왼쪽이 잘리므로 항상 왼쪽 끝에 붙인다. */
 .html2pdf__container { margin: 0 !important; }
