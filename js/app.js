@@ -1596,6 +1596,9 @@
     btn.disabled = true;
     btn.textContent = 'PDF 만드는 중...';
     document.body.classList.add('pdf-mode');
+    // PDF 폭에 맞춰 차트 크기를 바로 다시 잡는다. (크기가 0인 차트가 있으면 PDF 도구가 멈춘다)
+    const fitCharts = () => charts.forEach(c => { try { c.resize(); } catch { /* 무시 */ } });
+    fitCharts();
     const safeName = current.product.name.replace(/[\\/:*?"<>|]/g, '').slice(0, 40) || '상품';
     try {
       await html2pdf().set({
@@ -1611,6 +1614,7 @@
       window.print();
     } finally {
       document.body.classList.remove('pdf-mode');
+      fitCharts();
       btn.disabled = false;
       btn.textContent = 'PDF 다운로드';
     }
