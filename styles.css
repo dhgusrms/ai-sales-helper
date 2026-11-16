@@ -365,6 +365,8 @@ td.best { font-weight: 700; color: var(--good); }
 #dpAiInfo { margin: 0 0 12px; color: var(--muted); }
 #dpAiInfo b { color: var(--text); }
 #dpRegen { width: 100%; }
+.dp-request { display: block; margin-bottom: 10px; }
+.dp-request textarea { width: 100%; margin-top: 6px; font: inherit; font-size: 18px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; resize: vertical; }
 .dp-panel .card { margin: 0; padding: 16px; }
 .dp-panel h3 { margin-bottom: 10px; }
 .dp-themes { display: flex; gap: 8px; flex-wrap: wrap; }

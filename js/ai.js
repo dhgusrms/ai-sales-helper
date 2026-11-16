@@ -728,7 +728,7 @@ ${lines('상품명 후보', (c.product_names || []).map(x => x.name))}${lines('�
 위 정보로 이 상품의 상세페이지 전체를 설계해 주세요. 판매 콘텐츠 초안의 좋은 문장은 살리고, 부족한 부분은 분석 결과로 채워 더 풍부하게 만듭니다.`;
   }
 
-  function normalizeDetail(r, product) {
+  function normalizeDetail(r, product, { keepSpecs = true } = {}) {
     const s = v => (typeof v === 'string' ? v.replace(/\s*[[(](일반|입력) ?정보[\])]/g, '').trim() : '');
     const arr = v => (Array.isArray(v) ? v : []);
     const seen = new Set();
@@ -742,7 +742,7 @@ ${lines('상품명 후보', (c.product_names || []).map(x => x.name))}${lines('�
       .filter(x => x.kind && !seen.has(x.kind) && seen.add(x.kind))
       .filter(x => x.kind === 'specs' || x.kind === 'closing' ? true : x.items.length);
     // 제품 정보 표는 AI가 빼먹어도 넣는다 (사용자가 입력한 사실만 들어가는 칸)
-    if (!sections.some(x => x.kind === 'specs')) {
+    if (keepSpecs && !sections.some(x => x.kind === 'specs')) {
       const at = sections.findIndex(x => x.kind === 'faq' || x.kind === 'care' || x.kind === 'closing');
       sections.splice(at < 0 ? sections.length : at, 0, { kind: 'specs', title: '제품 정보', lead: '', items: [] });
     }
@@ -759,7 +759,16 @@ ${lines('상품명 후보', (c.product_names || []).map(x => x.name))}${lines('�
     };
   }
 
-  async function generateDetailPage(product, profit, ai, photoUrls, signal) {
+  // 다시 만들 때: 지금 상세페이지를 짧게 정리해 AI에 참고로 준다 (요청에 없는 부분은 살리도록)
+  function describeDetail(m) {
+    if (!m?.sections) return '';
+    const h = m.hero || {};
+    return [`[첫 화면] ${[h.eyebrow, h.headline, h.subcopy].filter(Boolean).join(' / ')}`,
+      ...m.sections.map(x => `[${x.kind}] ${x.title}${x.lead ? ` - ${x.lead}` : ''}${x.items.length ? `\n${x.items.map(i => `  - ${[i.title, i.text].filter(Boolean).join(': ')}`).join('\n')}` : ''}`)].join('\n');
+  }
+
+  // options.request: 판매자가 쓴 요청(추가·제거·강조), options.previous: 지금 상세페이지
+  async function generateDetailPage(product, profit, ai, photoUrls, signal, options = {}) {
     const p = getProvider();
     const images = [];
     if (p === 'cloud') {
@@ -768,15 +777,27 @@ ${lines('상품명 후보', (c.product_names || []).map(x => x.name))}${lines('�
       }
     }
     const system = DETAIL_SYSTEM.replace('{{PHOTO}}', images.length ? ', 상품 사진' : '');
-    const text = buildDetailText(product, profit, ai);
+    const request = String(options.request || '').trim().slice(0, 300);
+    let text = buildDetailText(product, profit, ai);
+    if (request) {
+      const prev = describeDetail(options.previous);
+      text += `${prev ? `\n\n=== 지금 상세페이지 (참고) ===\n${prev}` : ''}
+
+=== 판매자 요청 (가장 우선) ===
+${request}
+
+판매자 요청을 반드시 반영해 다시 설계하세요. 빼 달라는 것은 빼고, 넣어 달라는 것은 넣고, 강조해 달라는 것은 첫 화면이나 앞쪽 섹션에서 크게 다룹니다.
+요청이 섹션 수·종류 규칙과 부딪치면 요청을 따릅니다. 요청에 없는 부분은 지금 상세페이지의 좋은 점을 살립니다.
+단, 사실 규칙은 요청보다 우선합니다. 입력 정보에 없는 수치·효과·인증·후기를 요청 때문에 지어내지 말고, 필요하면 [확인 필요]를 붙이세요.`;
+    }
     const { parsed, model } = p === 'qwen' ? await requestQwen(system, text, DETAIL_SCHEMA, signal)
       : p === 'cloud' ? await requestCloud(system, text, DETAIL_SCHEMA, signal, images)
         : await requestClaude(system, text, DETAIL_SCHEMA, signal);
-    const out = normalizeDetail(parsed, product);
+    const out = normalizeDetail(parsed, product, { keepSpecs: !request });
     if (out.sections.filter(x => x.kind !== 'specs').length < 3) {
       throw new AIError('parse', 'AI가 상세페이지를 충분히 만들지 못했습니다. 다시 시도해 주세요.');
     }
-    return { ...out, model };
+    return { ...out, model, request };
   }
 
   /* ---------- 오타·맞춤법 검사 ---------- */

@@ -36,7 +36,7 @@ const DetailPage = (() => {
       .filter(([, v]) => v).map(([k, v]) => ({ k, v }));
   }
   function fromAI(out, product) {
-    return { v: 2, theme: out.theme || 'navy', hero: out.hero, sections: out.sections, specs: specsOf(product), model: out.model, madeAt: new Date().toISOString() };
+    return { v: 2, theme: out.theme || 'navy', hero: out.hero, sections: out.sections, specs: specsOf(product), model: out.model, request: out.request || '', madeAt: new Date().toISOString() };
   }
   // 섹션 종류 이름 (편집 화면의 구성 목록에 쓴다)
   const KIND_LABELS = { empathy: '고민 공감', points: '핵심 장점', detail: '디테일', scenes: '이런 분께', howto: '사용 방법', specs: '제품 정보', faq: '자주 묻는 질문', care: '관리·주의', closing: '마무리' };

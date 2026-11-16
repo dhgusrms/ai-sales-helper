@@ -1203,7 +1203,7 @@
   }
 
   // AI가 상품 정보·분석·판매 콘텐츠 초안(·사진)을 보고 상세페이지 전체를 설계한다.
-  async function makeDetailPage(rec) {
+  async function makeDetailPage(rec, request = '') {
     if (!AI.isReady()) { openSettings(); return; }
     if (isBusy()) { alert('AI가 다른 작업을 하고 있어요. 오른쪽 아래 상자에서 끝나면 다시 눌러 주세요.'); return; }
     preparePhotos(rec);
@@ -1215,7 +1215,7 @@
     // 버튼을 누른 화면(결과·상세페이지)에 그대로 있으면 끝나자마자 연다
     const stayed = () => current === rec && (!$('#view-result').hidden || !$('#view-detail').hidden);
     try {
-      const out = await AI.generateDetailPage(product, rec.profit, rec.ai, urls, signal);
+      const out = await AI.generateDetailPage(product, rec.profit, rec.ai, urls, signal, { request, previous: rec.ai.detailPage });
       rec.ai.detailPage = DetailPage.fromAI(out, rec.product);
       rec.saved = Store.save(rec);
       if (stayed()) { stopLoading(); open(); return; }
@@ -1231,7 +1231,9 @@
 
   function renderDetailPanel() {
     const m = current.ai.detailPage;
-    $('#dpAiInfo').innerHTML = `AI가 이 상품에 맞춰 <b>${m.sections.length}개 섹션</b>으로 짰어요: ${m.sections.map(x => esc(DetailPage.KIND_LABELS[x.kind] || x.kind)).join(' → ')}`;
+    $('#dpAiInfo').innerHTML = `AI가 이 상품에 맞춰 <b>${m.sections.length}개 섹션</b>으로 짰어요: ${m.sections.map(x => esc(DetailPage.KIND_LABELS[x.kind] || x.kind)).join(' → ')}`
+      + (m.request ? `<br>반영한 요청: “${esc(m.request)}”` : '');
+    $('#dpRequest').value = m.request || '';
     $('#dpThemes').innerHTML = Object.entries(DetailPage.THEMES).map(([id, t]) =>
       `<button type="button" class="dp-theme ${m.theme === id ? 'is-active' : ''}" data-theme="${id}"><i style="background:${t.main}"></i>${t.label}</button>`).join('');
     $('#dpSlots').innerHTML = DetailPage.SLOT_LABELS.map((label, i) => {
@@ -1249,9 +1251,13 @@
   }
 
   $('#dpRegen').addEventListener('click', () => {
-    if (!confirm('AI가 상세페이지를 처음부터 다시 만들어요. 지금 고친 글자는 사라집니다. 다시 만들까요?')) return;
+    const request = $('#dpRequest').value.trim();
+    const msg = request
+      ? `요청을 반영해 상세페이지를 다시 만들어요.\n\n“${request}”\n\n지금 고친 글자는 사라집니다. 다시 만들까요?`
+      : 'AI가 상세페이지를 처음부터 다시 만들어요. 지금 고친 글자는 사라집니다. 다시 만들까요?';
+    if (!confirm(msg)) return;
     document.activeElement?.blur();
-    makeDetailPage(current);
+    makeDetailPage(current, request);
   });
   $('#dpThemes').addEventListener('click', e => {
     const id = e.target.closest('[data-theme]')?.dataset.theme;
