@@ -933,7 +933,7 @@
 
   function verdictCard(v, ai) {
     return `<div class="card" data-box>
-      <div class="box-head"><h2>AI 종합 평가</h2>${TOOLS}</div>
+      <div class="box-head"><h2>AI 종합 평가</h2></div>
       <div class="verdict box-body">
         <div class="verdict-badge ${VERDICT_CLASS[v.level]}">
           <div class="tag">최종 의견</div>
@@ -1140,14 +1140,14 @@
         <button class="btn-primary" data-action="detail">상세페이지 만들기</button></div></div>
       ${notes}
       <div class="boxes">
-      ${box('상품명 후보', `<ul class="list-plain">${c.product_names.map((x, i) => `<li><b>${ed(`content.product_names.${i}.name`, x.name)}</b>
+      ${contentBox('상품명 후보', `<ul class="list-plain">${c.product_names.map((x, i) => `<li><b>${ed(`content.product_names.${i}.name`, x.name)}</b>
           <div class="sub">${ed(`content.product_names.${i}.reason`, x.reason)}</div></li>`).join('')}</ul>`)}
-      ${box('검색 키워드', `<p class="keywords">${c.keywords.map((k, i) => ed(`content.keywords.${i}`, k)).join('<span class="sep">, </span>')}</p>
+      ${contentBox('검색 키워드', `<p class="keywords">${c.keywords.map((k, i) => ed(`content.keywords.${i}`, k)).join('<span class="sep">, </span>')}</p>
           <p class="muted small">AI가 제안한 후보입니다. 실제 검색량은 확인되지 않았으니 네이버 데이터랩 등에서 직접 확인해 주세요.</p>`)}
-      ${box('상세페이지 구성안 (위에서 아래 순서)', `<ol class="detail-list">${c.detail_page.map((x, i) => `<li><b>${esc(x.section)}</b>${x.title ? ` <span class="muted">· 제목: ${esc(x.title)}</span>` : ''}
+      ${contentBox('상세페이지 구성안 (위에서 아래 순서)', `<ol class="detail-list">${c.detail_page.map((x, i) => `<li><b>${esc(x.section)}</b>${x.title ? ` <span class="muted">· 제목: ${esc(x.title)}</span>` : ''}
           <div>${ed(`content.detail_page.${i}.content`, x.content)}</div>
           <div class="sub">근거: ${ed(`content.detail_page.${i}.evidence`, x.evidence)}</div></li>`).join('')}</ol>`)}
-      ${box('홍보문구', `<ul class="list-plain">${c.promo_copies.map((x, i) => `<li><span class="pill">${esc(x.channel)}</span>
+      ${contentBox('홍보문구', `<ul class="list-plain">${c.promo_copies.map((x, i) => `<li><span class="pill">${esc(x.channel)}</span>
           <div class="promo">${ed(`content.promo_copies.${i}.text`, x.text)}</div></li>`).join('')}</ul>`)}
       </div>
       <p class="disclaimer">AI가 만든 <b>초안</b>입니다. 상품의 사실과 다르거나 과장된 표현이 없는지 확인한 뒤 사용해 주세요. 각 항목의 <b>수정</b> 버튼으로 고칠 수 있습니다. (모델: ${esc(c.model)})</p>
@@ -1338,8 +1338,12 @@
   function ed(path, text) {
     return `<span class="ed" data-path="${path}">${badges(text)}</span>`;
   }
-  function box(title, body) {
-    return `<div class="box" data-box><div class="box-head"><h3>${title}</h3>${TOOLS}</div><div class="box-body">${body}</div></div>`;
+  // 수정·복사 버튼은 판매 콘텐츠 초안에만 둔다 (분석 결과는 읽기 전용)
+  function box(title, body, tools = false) {
+    return `<div class="box" data-box><div class="box-head"><h3>${title}</h3>${tools ? TOOLS : ''}</div><div class="box-body">${body}</div></div>`;
+  }
+  function contentBox(title, body) {
+    return box(title, body, true);
   }
   // 편집 중인 문장에서 '확인 필요'·'일반 정보' 표시를 원래 [ ] 글자로 되돌려 읽는다
   function readEdited(span) {
