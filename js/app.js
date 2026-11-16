@@ -290,14 +290,23 @@
       box.appendChild(p);
     }
   }
-  // 고친 칸은 바로 오류 표시를 지운다
-  form.addEventListener('input', e => {
-    const box = e.target.closest('.field');
-    if (!e.target.classList.contains('invalid')) return;
-    e.target.classList.remove('invalid');
-    box?.querySelectorAll(':scope > .field-err').forEach(el => el.remove());
+  // 고친 칸은 바로 오류 표시를 지운다. (목록에서 고르거나 'AI 추천 적용'처럼 change만 생기는 경우도 포함)
+  function clearFieldError(el) {
+    if (!el?.classList?.contains('invalid')) return;
+    el.classList.remove('invalid');
+    el.closest('.field')?.querySelectorAll(':scope > .field-err').forEach(x => x.remove());
+  }
+  form.addEventListener('input', e => clearFieldError(e.target));
+  // 글자 칸에서 Enter를 누르면 폼이 바로 제출되어 아직 안 쓴 칸까지 경고가 뜬다. 대신 다음 칸으로 넘어간다.
+  form.addEventListener('keydown', e => {
+    const t = e.target;
+    if (e.key !== 'Enter' || e.isComposing || t.tagName !== 'INPUT' || ['checkbox', 'radio', 'file', 'submit', 'button'].includes(t.type)) return;
+    e.preventDefault();
+    const items = [...form.elements].filter(x => !x.disabled && !x.hidden && x.type !== 'hidden' && x.offsetParent && /^(INPUT|SELECT|TEXTAREA)$/.test(x.tagName) && x.type !== 'file');
+    items[items.indexOf(t) + 1]?.focus();
   });
   form.addEventListener('change', e => {
+    if (e.target.tagName === 'SELECT' || (e.target.type !== 'checkbox' && e.target.value)) clearFieldError(e.target);
     if (e.target.name === 'certVerified' && e.target.checked) {
       e.target.classList.remove('invalid');
       $('#certCheck').querySelectorAll('.field-err').forEach(el => el.remove());
