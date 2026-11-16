@@ -1667,8 +1667,11 @@
     const fitCharts = () => charts.forEach(c => { try { c.resize(); } catch { /* 무시 */ } });
     fitCharts();
     // 브라우저가 차트 크기 변경을 한 박자 늦게 반영하는 경우가 있어, 한 번 쉬고 다시 맞춘다
-    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 60)));
+    await new Promise(r => setTimeout(r, 80)); // 화면이 가려진 탭에서도 멈추지 않게 requestAnimationFrame은 쓰지 않는다
     fitCharts();
+    // 섹션(카드)마다 새 페이지에서 시작한다. 첫 카드는 제목 바로 아래에 둔다. 화면에 안 보이는 카드는 건너뛴다.
+    const breakCards = $$('.card', view).filter(c => c.offsetParent).slice(1);
+    breakCards.forEach(c => c.classList.add('pdf-break'));
     const safeName = current.product.name.replace(/[\\/:*?"<>|]/g, '').slice(0, 40) || '상품';
     try {
       await html2pdf().set({
@@ -1677,13 +1680,14 @@
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { scale: 2, backgroundColor: '#ffffff', windowWidth: 960 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css'], avoid: ['.card', '.box', 'tr', '.score-row', '.kpis', '.chart-box'] },
+        pagebreak: { mode: ['css'], before: '.pdf-break', avoid: ['.box', '.two-col', 'tr', '.score-row', '.kpis', '.chart-box'] },
       }).from(view).save();
     } catch {
       alert('PDF를 만들지 못했습니다. 인쇄 창에서 "PDF로 저장"을 선택해 주세요.');
       window.print();
     } finally {
       document.body.classList.remove('pdf-mode');
+      breakCards.forEach(c => c.classList.remove('pdf-break'));
       fitCharts();
       btn.disabled = false;
       btn.textContent = 'PDF 다운로드';
