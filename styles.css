@@ -360,7 +360,9 @@ td.best { font-weight: 700; color: var(--good); }
 .pdf-mode .head-actions, .pdf-mode [data-action], .pdf-mode .box-tools { display: none !important; }
 
 /* 상세페이지 만들기: 편집 화면 */
-.dp-panel { display: grid; grid-template-columns: 1.3fr 1fr 1.3fr 1.2fr; gap: 12px; margin-bottom: 16px; }
+/* 상자마다 자기 내용만큼만 높이를 쓴다. AI 추천 사진은 내용이 길어 맨 아래 한 줄을 통째로 쓴다 */
+.dp-panel { display: grid; grid-template-columns: 1.3fr 1fr 1.3fr 1.2fr; gap: 12px; margin-bottom: 16px; align-items: start; }
+#dpShotCard { grid-column: 1 / -1; order: 1; }
 @media (max-width: 1200px) { .dp-panel { grid-template-columns: 1fr 1fr; } }
 #dpAiInfo { margin: 0 0 12px; color: var(--muted); }
 #dpAiInfo b { color: var(--text); }
@@ -378,10 +380,10 @@ td.best { font-weight: 700; color: var(--good); }
 .dp-slot .thumb-s { width: 40px; height: 40px; border-radius: 6px; background: var(--subtle) center / cover no-repeat; flex: none; }
 .dp-slot .name { flex: 1; font-size: 20px; }
 .dp-tips ul { padding-left: 16px; color: var(--muted); }
-#dpShotBtn { width: 100%; margin-top: 10px; }
+#dpShotBtn { width: 100%; max-width: 360px; margin-top: 10px; }
 #dpShotMsg { margin: 8px 0 0; }
 #dpShotMsg.is-error { color: var(--bad); }
-.dp-shots { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 10px; }
+.dp-shots { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .dp-shots li { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .dp-shot-slot { display: inline-block; font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
 .dp-shot-slot.is-extra { color: var(--muted); }
