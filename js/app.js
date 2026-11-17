@@ -177,36 +177,6 @@
   form.elements.certType.addEventListener('change', () => { form.elements.certVerified.checked = false; updateCertUI(); });
   form.elements.certNo.addEventListener('input', () => { form.elements.certVerified.checked = false; });
 
-  // 저장된 분석을 다시 열 때 크기·인증 칸을 채운다. 예전 기록(글로 적은 크기·인증)은 안내만 보여 준다.
-  function restoreSizeCert(p) {
-    $$('.legacy-hint', form).forEach(el => el.remove());
-    const hint = (box, text) => {
-      const el = document.createElement('p');
-      el.className = 'hint small legacy-hint';
-      el.textContent = text;
-      box.appendChild(el);
-    };
-    form.elements.sizeShape.value = shapeOf(p.sizeShape);
-    form.elements.sizeText.value = p.sizeText || '';
-    updateSizeUI();
-    if ('sizeW' in p) {
-      for (const k of SIZE_KEYS) form.elements[k].value = p[k] || '';
-      form.elements.sizeUnit.value = SIZE_UNITS.includes(p.sizeUnit) ? p.sizeUnit : 'cm';
-    } else if (p.size) {
-      hint($('#sizeField'), `예전에 적은 크기: "${p.size}" — 숫자 칸에 다시 입력해 주세요.`);
-    }
-    if ('certType' in p) {
-      form.elements.certType.value = p.certType || '';
-      form.elements.certNo.value = p.certNo || '';
-      form.elements.certName.value = p.certName || '';
-      updateCertUI();
-      form.elements.certVerified.checked = !!p.certVerified;
-    } else {
-      updateCertUI();
-      if (p.certification) hint($('#certField'), `예전에 적은 인증 정보: "${p.certification}" — 인증 종류를 고르고 번호를 조회해 확인해 주세요.`);
-    }
-  }
-
   /* ---------- 입력 검사 ---------- */
   const LETTER_RE = /[가-힣A-Za-z]/;
   const letterCount = t => (t.match(/[가-힣A-Za-z]/g) || []).length;
@@ -510,7 +480,6 @@
     photos = [];
     renderThumbs();
     showFieldErrors([]);
-    $$('.legacy-hint', form).forEach(el => el.remove());
     $('#formError').textContent = '';
     $('#formWarn').hidden = true;
     typoCtrl?.abort();
@@ -840,43 +809,6 @@
     $('.step[data-go="result"]').disabled = false;
     go('result');
   }
-
-  $('#editProduct').addEventListener('click', () => {
-    if (current && current.id !== formRecordId) {
-      // 저장된 기록을 불러와 수정: 사진과 업로드 자료는 저장되지 않으므로 다시 올려야 한다
-      clearForm();
-      const p = current.product;
-      for (const k of ['name', 'description', 'targetMargin']) form.elements[k].value = p[k];
-      for (const k of ['material', 'components']) form.elements[k].value = p[k] || ''; // 이전에 저장된 기록에는 없을 수 있음
-      restoreSizeCert(p);
-      for (const k of ['cost', 'price', 'shipping', 'packaging']) form.elements[k].value = p[k] ? Number(p[k]).toLocaleString('ko-KR') : '';
-      if (p.cost === 0) form.elements.cost.value = '0';
-      form.elements.feeRate.value = p.feeRate || '';
-      // 지금 선택지에 없는 예전 플랫폼(네이버 마케팅 링크 유입)은 네이버 스마트스토어로 불러온다
-      const plat = p.platform === 'naverLink' ? 'naver' : p.platform;
-      form.elements.platform.value = Platforms.LIST[plat] && !Platforms.LIST[plat].legacyOnly ? plat : 'custom';
-      lastPlatform = form.elements.platform.value;
-      fillMains();
-      if (p.platform === 'naverLink') {
-        const keep = p.catMain && Platforms.mains('naver').includes(p.catMain);
-        if (keep) form.elements.catMain.value = p.catMain;
-        showCatNotice(`예전에 '네이버 마케팅 링크 유입'으로 저장한 분석이라 네이버 스마트스토어로 불러왔습니다.${keep ? '' : ' 카테고리는 다시 골라 주세요.'} 저장했던 수수료(${p.feeRate}%)는 그대로 두었습니다.`);
-      } else if (form.elements.platform.value === 'custom') {
-        form.elements.catCustom.value = p.catMain || p.category || '';
-      } else if (p.catMain && Platforms.mains(p.platform).includes(p.catMain)) {
-        form.elements.catMain.value = p.catMain;
-        fillSubs(p.catSub || '');
-      } else if (p.category) {
-        // 예전 기록: 플랫폼별 카테고리가 생기기 전의 카테고리라 새 목록에서 다시 골라야 한다
-        showCatNotice(`예전에 저장한 '${p.category}' 카테고리는 새 카테고리 목록에 없어 비워 두었습니다. ${Platforms.label(p.platform)} 카테고리를 다시 골라 주세요. 저장했던 수수료(${p.feeRate}%)는 그대로 두었습니다.`);
-      }
-      applyPlatformFee(false);
-      formRecordId = current.id;
-      liveCalc();
-      if (p.thumb) alert('사진은 저장되지 않습니다. 필요하면 다시 올려 주세요.');
-    }
-    go('input');
-  });
 
   /* ---------- 결과 렌더링 ---------- */
   function destroyCharts() {
