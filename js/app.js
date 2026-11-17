@@ -1190,6 +1190,7 @@
   }
   function showDetail() {
     renderDetailPanel();
+    renderShots();
     renderDetailPreview();
     go('detail');
   }
@@ -1236,16 +1237,56 @@
     $('#dpRequest').value = m.request || '';
     $('#dpThemes').innerHTML = Object.entries(DetailPage.THEMES).map(([id, t]) =>
       `<button type="button" class="dp-theme ${m.theme === id ? 'is-active' : ''}" data-theme="${id}"><i style="background:${t.main}"></i>${t.label}</button>`).join('');
+    const rec = DetailPage.SLOT_LABELS.map(label => m.shots?.shots.find(x => x.slot === label));
     $('#dpSlots').innerHTML = DetailPage.SLOT_LABELS.map((label, i) => {
       const p = detailPhotos[i];
       return `<div class="dp-slot"><span class="thumb-s" style="${p ? `background-image:url(${p.url})` : ''}"></span>
-        <span class="name">${label}</span>
+        <span class="name">${label}${rec[i] ? `<small class="dp-slot-rec">추천: ${esc(rec[i].title)}</small>` : ''}</span>
         <input type="file" accept="image/*" hidden data-slot-input="${i}">
         <button type="button" class="link-btn" data-slot-pick="${i}">${p ? '변경' : '올리기'}</button>
         ${p ? `<button type="button" class="link-btn danger" data-slot-clear="${i}">빼기</button>` : ''}</div>`;
     }).join('');
     $('#dpPhotoNote').textContent = '사진은 저장되지 않습니다. 저장된 분석을 다시 열면 사진을 다시 올려 주세요. 사진이 없는 칸은 이미지에서 빠집니다.';
   }
+  // AI 추천 사진: 결과는 상세페이지와 함께 저장한다 (상세페이지를 다시 만들면 새로 받는다)
+  function renderShots() {
+    const r = current.ai.detailPage.shots;
+    if (shotBusyFor === current) return;
+    $('#dpShotIntro').hidden = !!r;
+    $('#dpShots').innerHTML = r ? `<ul class="dp-shots">${r.shots.map(x => `<li>
+        <span class="dp-shot-slot ${x.slot === '추가 사진' ? 'is-extra' : ''}">${esc(x.slot)}</span>
+        <b>${esc(x.title)}</b><p>${esc(x.how)}</p>${x.why ? `<p class="why">${esc(x.why)}</p>` : ''}</li>`).join('')}</ul>
+        ${r.current ? `<p class="dp-shot-now"><b>올린 사진 보기</b> ${esc(r.current)}</p>` : ''}` : '';
+    $('#dpShotBtn').disabled = false;
+    $('#dpShotBtn').textContent = r ? '다시 추천 받기' : 'AI에게 사진 추천 받기';
+    $('#dpShotMsg').hidden = true;
+  }
+  let shotBusyFor = null;
+  $('#dpShotBtn').addEventListener('click', async () => {
+    if (!AI.isReady()) { openSettings(); return; }
+    const rec = current;
+    const page = rec.ai.detailPage;
+    shotBusyFor = rec;
+    $('#dpShotBtn').disabled = true;
+    $('#dpShotBtn').textContent = 'AI가 추천하는 중… (10~30초)';
+    $('#dpShotMsg').hidden = true;
+    try {
+      const urls = rec.id === detailPhotosFor ? detailPhotos.map(p => p?.url) : [];
+      const out = await AI.suggestPhotos({ ...rec.product, photos: [], docs: [] }, rec.ai, page, urls);
+      page.shots = { shots: out.shots, current: out.current, model: out.model, madeAt: new Date().toISOString() };
+      rec.saved = Store.save(rec);
+      shotBusyFor = null;
+      if (current === rec && current.ai.detailPage === page) { renderShots(); renderDetailPanel(); }
+    } catch (ex) {
+      shotBusyFor = null;
+      if (current !== rec) return;
+      renderShots();
+      $('#dpShotMsg').hidden = false;
+      $('#dpShotMsg').className = 'small is-error';
+      $('#dpShotMsg').textContent = `추천을 받지 못했어요. 다시 눌러 주세요. ${ex.message || ''}`;
+    }
+  });
+
   function renderDetailPreview() {
     $('#dpPreview').innerHTML = DetailPage.render(current.ai.detailPage, detailPhotos);
   }

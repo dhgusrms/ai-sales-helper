@@ -832,6 +832,93 @@ ${request}
 
   // fields: { name, description, ... } → [{ field, label, wrong, right, reason }]
   // 상품명으로 대분류 추천: 그 판매처의 대분류 목록 안에서만 하나 고른다.
+  // 상세페이지에 넣을 사진을 무엇을 어떻게 찍으면 좋을지 추천한다
+  const SHOT_SLOTS = ['대표 사진', '강점 사진', '규격·구성 사진'];
+  const SHOT_SYSTEM = `당신은 한국 온라인 쇼핑몰 상세페이지용 상품 사진을 기획하는 촬영 디렉터입니다.
+판매자는 사진 전문가가 아니고 휴대폰으로 집에서 찍습니다. 이 상품과 이 상세페이지에 꼭 맞는 사진을 추천합니다.
+- shots의 처음 3개는 차례대로 slot이 "대표 사진", "강점 사진", "규격·구성 사진"인 사진입니다. 각 사진이 상세페이지의 어디에 들어가는지 보고 그 자리의 내용을 보여 주는 장면을 고릅니다.
+- 그다음 1~3개는 slot을 "추가 사진"으로 두고, 쇼핑몰 추가 이미지나 상세페이지 보강용으로 찍어 두면 좋은 장면을 추천합니다.
+- title: 찍을 장면을 한 줄로 (예: "뚜껑을 연 채 위에서 내려다본 사진").
+- how: 휴대폰으로 따라 할 수 있게 구체적으로 1~2문장. 놓는 법, 각도(정면·45도·위에서), 배경, 빛, 함께 둘 소품, 손이나 크기 비교 물건 등.
+- why: 이 사진이 구매자의 어떤 궁금증·걱정을 풀어 주는지 한 문장.
+- 이 상품에서만 의미 있는 장면을 고르세요. "밝은 곳에서 찍으세요" 같은 어느 상품에나 맞는 말만 쓰지 마세요.
+- 입력에 없는 구성품·기능을 있다고 가정하지 마세요.
+- current: 판매자가 올린 사진이 있으면, 그 사진들이 위 추천과 비교해 어떤지와 무엇을 다시 찍으면 좋을지 1~2문장. 사진이 없으면 빈 문자열("").
+- 모든 글은 한국어 존댓말로 씁니다.`;
+  const SHOT_SCHEMA = {
+    type: 'object',
+    properties: {
+      shots: {
+        type: 'array', minItems: 4, maxItems: 6,
+        items: {
+          type: 'object',
+          properties: { slot: { type: 'string', enum: [...SHOT_SLOTS, '추가 사진'] }, title: { type: 'string' }, how: { type: 'string' }, why: { type: 'string' } },
+          required: ['slot', 'title', 'how', 'why'], additionalProperties: false,
+        },
+      },
+      current: { type: 'string' },
+    },
+    required: ['shots', 'current'], additionalProperties: false,
+  };
+  // 사진 세 칸이 상세페이지 어디에 들어가는지 알려 준다 (js/detail.js의 배치와 같게)
+  function shotPlaces(m) {
+    const sec = m?.sections || [];
+    const strong = sec.find(x => x.kind === 'points') || sec.find(x => x.kind === 'detail');
+    const specs = sec.find(x => x.kind === 'specs');
+    const h = m?.hero || {};
+    return [
+      `- 대표 사진: 첫 화면 맨 위. 큰 제목 "${h.headline || ''}"${h.subcopy ? ` / 소개 "${h.subcopy}"` : ''}`,
+      `- 강점 사진: ${strong ? `"${strong.title}" 섹션 아래 (${strong.items.map(i => i.title || i.text).filter(Boolean).slice(0, 4).join(', ')})` : '이 상세페이지에는 들어갈 자리가 없음 (쇼핑몰 추가 이미지용으로 추천)'}`,
+      `- 규격·구성 사진: ${specs ? '"제품 정보" 표(재질·크기·구성품) 아래' : '제품 정보 표가 없어 들어갈 자리가 없음 (쇼핑몰 추가 이미지용으로 추천)'}`,
+    ].join('\n');
+  }
+  function normalizeShots(r) {
+    const clean = v => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
+    const all = (Array.isArray(r?.shots) ? r.shots : [])
+      .map(x => ({ slot: clean(x?.slot), title: clean(x?.title), how: clean(x?.how), why: clean(x?.why) }))
+      .filter(x => x.title);
+    const used = new Set();
+    const main = SHOT_SLOTS.map(slot => {
+      const i = all.findIndex((x, j) => !used.has(j) && x.slot === slot);
+      if (i < 0) return null;
+      used.add(i);
+      return all[i];
+    }).filter(Boolean);
+    const extra = all.filter((x, j) => !used.has(j)).slice(0, 3).map(x => ({ ...x, slot: '추가 사진' }));
+    return { shots: [...main, ...extra], current: clean(r?.current) };
+  }
+  async function suggestPhotos(product, ai, detailPage, photoUrls, signal) {
+    const p = getProvider();
+    const images = [];
+    if (p === 'cloud') {
+      for (const url of (photoUrls || []).filter(Boolean).slice(0, 3)) {
+        try { images.push(await smallPhoto(url, 640)); } catch { /* 못 읽은 사진은 빼고 보낸다 */ }
+      }
+    }
+    const lines = (title, items) => items?.length ? `[${title}]\n${items.map(x => `- ${x}`).join('\n')}\n` : '';
+    const text = `[상품명] ${product.name}
+[카테고리] ${Platforms.path(product) || '입력 안 함'}
+[재질] ${product.material || '입력 안 함'}
+[크기] ${product.size || '입력 안 함'}
+[구성품] ${product.components || '입력 안 함'}
+[제품 설명]
+${product.description}
+
+=== 분석 결과 ===
+${lines('주요 특징', ai.features)}${lines('강조할 장점', (ai.selling_points || []).map(x => x.point))}${lines('구매자가 걱정할 점', ai.weaknesses)}${lines('타깃 고객층', (ai.targets || []).map(t => t.segment))}${lines('사진으로 본 제품', ai.photo_review ? [...ai.photo_review.good, ...ai.photo_review.bad, ...(ai.photo_review.tips || [])] : [])}
+=== 상세페이지에서 사진이 들어가는 자리 ===
+${shotPlaces(detailPage)}
+
+${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함께 보냅니다 (대표·강점·규격 순서, 빈 칸은 빠짐).` : '판매자가 아직 사진을 올리지 않았습니다. current는 빈 문자열로 두세요.'}
+이 상품의 상세페이지에 넣을 사진을 무엇을, 어떻게 찍으면 좋을지 추천해 주세요.`;
+    const { parsed, model } = p === 'qwen' ? await requestQwen(SHOT_SYSTEM, text, SHOT_SCHEMA, signal)
+      : p === 'cloud' ? await requestCloud(SHOT_SYSTEM, text, SHOT_SCHEMA, signal, images)
+        : await requestClaude(SHOT_SYSTEM, text, SHOT_SCHEMA, signal);
+    const out = normalizeShots(parsed);
+    if (out.shots.length < 3) throw new AIError('parse', 'AI가 사진 추천을 충분히 만들지 못했습니다. 다시 시도해 주세요.');
+    return { ...out, model, withPhotos: images.length };
+  }
+
   const CAT_SYSTEM = `당신은 온라인 쇼핑몰의 상품 카테고리 분류 도우미입니다.
 상품명을 보고, 주어진 대분류 목록 중 이 상품을 등록하기에 가장 알맞은 대분류 하나를 고릅니다.
 - category에는 목록에 있는 이름을 글자 그대로 씁니다. 목록에 없는 이름을 만들지 마세요.
@@ -901,5 +988,5 @@ ${request}
   // 사용자가 '취소하고 돌아가기'를 누른 경우
   const cancelled = () => new AIError('cancelled', '분석을 취소했습니다.');
 
-  return { analyze, generateContent, generateDetailPage, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
+  return { analyze, generateContent, generateDetailPage, suggestPhotos, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
 })();
