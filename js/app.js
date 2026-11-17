@@ -1387,8 +1387,8 @@
   });
 
   /* ---------- 차트 ---------- */
-  const ACCENT = '#ef7a32';
-  const SERIES = ['#ef7a32', '#0d9488', '#7c3aed', '#7c2d12', '#db2777'];
+  const ACCENT = '#23824f';
+  const SERIES = ['#23824f', '#f59e0b', '#7c3aed', '#0369a1', '#db2777'];
   function chartDefaults() {
     if (!window.Chart) return false; // 차트 라이브러리를 못 불러와도 표는 보인다
     Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
@@ -1407,7 +1407,7 @@
           labels: ['시장성', '경쟁력', '수익성', '차별화', '안정성(100−위험도)'],
           datasets: [{
             data: [scores.market, scores.compete, scores.profit, scores.diff, 100 - scores.risk],
-            backgroundColor: 'rgba(239,122,50,.14)', borderColor: ACCENT, pointBackgroundColor: ACCENT, borderWidth: 2,
+            backgroundColor: 'rgba(35,130,79,.14)', borderColor: ACCENT, pointBackgroundColor: ACCENT, borderWidth: 2,
           }],
         },
         options: {
@@ -1421,7 +1421,7 @@
     const r = Profit.calc(p);
     const parts = [['상품 원가', p.cost], ['배송비', p.shipping], ['포장비', p.packaging], ['수수료', r.fee], ['순이익', Math.max(0, r.profit)]]
       .filter(([, v]) => v > 0);
-    const costColors = { '상품 원가': '#9a4a17', '배송비': '#ef7a32', '포장비': '#fdba74', '수수료': '#fde3c8', '순이익': '#15803d' };
+    const costColors = { '상품 원가': '#1f5f3a', '배송비': '#3a9a62', '포장비': '#93cfa8', '수수료': '#d4ecdc', '순이익': '#f59e0b' };
     charts.push(new Chart($('#costChart'), {
       type: 'doughnut',
       data: {
