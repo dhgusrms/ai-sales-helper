@@ -82,6 +82,8 @@
   /* ---------- 크기·인증 (숫자 칸과 인증 종류로 입력받아 글로 합친다) ---------- */
   const SIZE_MAX = { cm: 1000, mm: 10000, m: 100 };
   const SIZE_UNITS = ['cm', 'mm', 'm'];
+  // 직접 쓰기에서 고를 수 있는 단위 (''는 단위 없음: S·M·L처럼 단위가 필요 없는 크기)
+  const FREE_UNITS = ['', 'mm', 'cm', 'm', 'ml', 'L', 'g', 'kg'];
   // 모양마다 쓰는 칸과 이름. 칸은 sizeW, sizeD, sizeH 순서로 앞에서부터 쓴다.
   const SIZE_SHAPES = {
     box: ['가로', '세로', '높이'],
@@ -103,18 +105,20 @@
     // 지금 모양에서 안 쓰는 칸은 비운 것으로 본다
     const dims = Object.fromEntries(SIZE_KEYS.map((k, i) => [k, i < labels.length ? String(f.get(k) || '').trim() : '']));
     const sizeText = sizeShape === 'free' ? String(f.get('sizeText') || '').trim() : '';
-    let size = sizeText;
+    const sizeTextUnit = sizeShape === 'free' && FREE_UNITS.includes(f.get('sizeTextUnit')) ? f.get('sizeTextUnit') : '';
+    // 글에 이미 같은 단위를 붙여 썼으면(예: 230~280mm) 한 번 더 붙이지 않는다
+    let size = sizeText && sizeTextUnit && !sizeText.toLowerCase().endsWith(sizeTextUnit.toLowerCase()) ? `${sizeText}${sizeTextUnit}` : sizeText;
     if (sizeShape !== 'free') {
       const parts = labels.map((l, i) => [l, dims[SIZE_KEYS[i]]]).filter(([, v]) => v !== '');
       size = parts.length ? `${parts.map(([k, v]) => `${k} ${v}`).join(' × ')}${unit}` : '';
     }
-    return { ...dims, sizeShape, sizeUnit: unit, sizeText, size };
+    return { ...dims, sizeShape, sizeUnit: unit, sizeText, sizeTextUnit, size };
   }
   function updateSizeUI() {
     const shape = shapeOf(form.elements.sizeShape.value);
     const labels = SIZE_SHAPES[shape];
     $('#sizeRow').hidden = shape === 'free';
-    $('#sizeText').hidden = shape !== 'free';
+    $('#sizeFree').hidden = shape !== 'free';
     $$('[data-slot]', form).forEach(box => {
       const i = Number(box.dataset.slot);
       box.hidden = i >= labels.length;
@@ -782,7 +786,7 @@
         name: product.name, category: product.category, catMain: product.catMain, catSub: product.catSub,
         description: product.description,
         material: product.material, size: product.size,
-        sizeShape: product.sizeShape, sizeText: product.sizeText,
+        sizeShape: product.sizeShape, sizeText: product.sizeText, sizeTextUnit: product.sizeTextUnit,
         sizeW: product.sizeW, sizeD: product.sizeD, sizeH: product.sizeH, sizeUnit: product.sizeUnit,
         components: product.components, certification: product.certification,
         certType: product.certType, certNo: product.certNo, certName: product.certName, certVerified: product.certVerified,

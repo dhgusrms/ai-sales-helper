@@ -135,7 +135,15 @@
               <label class="size-box" data-slot="2"><span>높이</span><input type="text" inputmode="decimal" name="sizeH" data-num placeholder="4"></label>
               <select name="sizeUnit" aria-label="크기 단위"><option value="cm">cm</option><option value="mm">mm</option><option value="m">m</option></select>
             </div>
-            <input type="text" name="sizeText" id="sizeText" maxlength="80" placeholder="예) S·M·L / 230~280mm / 프리사이즈" hidden>
+            <div class="size-row" id="sizeFree" hidden>
+              <input type="text" name="sizeText" id="sizeText" maxlength="80" placeholder="예) S·M·L / 230~280 / 500">
+              <select name="sizeTextUnit" aria-label="직접 쓴 크기의 단위">
+                <option value="">단위 없음</option>
+                <option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option>
+                <option value="ml">ml</option><option value="L">L</option>
+                <option value="g">g</option><option value="kg">kg</option>
+              </select>
+            </div>
           </div>
 
           <div class="field" id="certField">
