@@ -375,9 +375,20 @@ td.best { font-weight: 700; color: var(--good); }
 
 /* 상세페이지 만들기: 편집 화면 */
 /* 상자마다 자기 내용만큼만 높이를 쓴다. AI 추천 사진은 내용이 길어 맨 아래 한 줄을 통째로 쓴다 */
-.dp-panel { display: grid; grid-template-columns: 1.3fr 1fr 1.3fr 1.2fr; gap: 12px; margin-bottom: 16px; align-items: start; }
-#dpShotCard { grid-column: 1 / -1; order: 1; }
-@media (max-width: 1200px) { .dp-panel { grid-template-columns: 1fr 1fr; } }
+/* 위 줄: AI 구성 | 사진 | 색상+기본 촬영 팁 (같은 너비·같은 높이), 아래 줄: 프롬프트 추천 */
+.dp-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; align-items: stretch; }
+.dp-panel > .card, .dp-stack > .card { display: flex; flex-direction: column; }
+.dp-stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dp-stack > .dp-tips { flex: 1; }
+#dpAiCard #dpRegen { margin-top: auto; }
+#dpAiCard .dp-request { margin-bottom: 14px; }
+#dpPhotoNote { margin: auto 0 0; padding-top: 8px; }
+#dpShotCard { grid-column: 1 / -1; order: 1; display: block; }
+@media (max-width: 1200px) {
+  .dp-panel { grid-template-columns: 1fr 1fr; }
+  .dp-stack { grid-column: 1 / -1; flex-direction: row; }
+  .dp-stack > .card { flex: 1; }
+}
 #dpAiInfo { margin: 0 0 12px; color: var(--muted); }
 #dpAiInfo b { color: var(--text); }
 #dpRegen { width: 100%; }
@@ -441,7 +452,7 @@ td.best { font-weight: 700; color: var(--good); }
 .dp-slot-rec { display: block; font-size: 14px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
 .dp-preview-wrap { overflow-x: auto; background: var(--subtle); border-radius: var(--radius); padding: 20px 0; }
 #dpPreview { width: 860px; margin: 0 auto; }
-@media (max-width: 760px) { .dp-panel { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .dp-panel { grid-template-columns: 1fr; } .dp-stack { flex-direction: column; } }
 
 /* 상세페이지 서식 (가로 860px) */
 .dp { background: #fff; color: #1f2937; font-family: "Pretendard", -apple-system, "Apple SD Gothic Neo", sans-serif; line-height: 1.6; word-break: keep-all; }
