@@ -321,7 +321,7 @@
     const err = (field, msg) => errors.push({ field, msg });
 
     if (!p.name) err('name', '상품명을 입력해 주세요.');
-    else if (p.name.length < 2 || !LETTER_RE.test(p.name)) err('name', '상품명은 한글이나 영문을 넣어 2자 이상 써 주세요. 숫자·기호만으로는 안 돼요.');
+    else if (!LETTER_RE.test(p.name)) err('name', '상품명에 한글이나 영문을 넣어 주세요. 숫자·기호만으로는 안 돼요.');
 
     const catField = p.platform === 'custom' ? 'catCustom' : 'catMain';
     if (!p.catMain) err(catField, p.platform === 'custom' ? '카테고리를 입력해 주세요.' : '카테고리를 골라 주세요.');
@@ -576,7 +576,7 @@
   async function suggestCategory() {
     const id = form.elements.platform.value;
     const name = form.elements.name.value.trim();
-    if (id === 'custom' || name.length < 2 || !LETTER_RE.test(name)) { hideCatSuggest(); return; }
+    if (id === 'custom' || !LETTER_RE.test(name)) { hideCatSuggest(); return; }
     const key = `${id}|${name}`;
     if (key === catKey) return;
     hideCatSuggest();
