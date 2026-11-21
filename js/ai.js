@@ -457,6 +457,21 @@ ${each.join('\n')}
     return { parsed: data.result, model: CLOUD_MODEL_LABEL, imagesUsed: data.imagesUsed === true };
   }
 
+  // KC 인증번호를 Worker가 제품안전정보센터에서 조회한다. 결과: { found, state, product, model, maker, ... }
+  // 연결 실패 등으로 조회 자체를 못 하면 AIError를 던진다 (번호가 없는 것과 구분).
+  async function lookupKC(no) {
+    if (!WORKER_URL) throw new AIError('no-worker', '조회 서버 주소가 설정되지 않았습니다.');
+    let res, data;
+    try {
+      res = await fetch(`${WORKER_URL}/kc?no=${encodeURIComponent(no)}`);
+      data = await res.json().catch(() => null);
+    } catch {
+      throw new AIError('network', '조회 서버에 연결하지 못했습니다.');
+    }
+    if (!res.ok || !data || typeof data.found !== 'boolean') throw new AIError(data?.error || 'api', data?.message || `조회에 실패했습니다. (${res.status})`);
+    return data;
+  }
+
   // Ollama 기본 API에 한 번 요청하고 JSON 응답을 돌려준다. (분석·판매 콘텐츠 공용)
   async function requestQwen(system, text, schema, signal) {
     const model = getQwenModel();
@@ -988,5 +1003,5 @@ ${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함�
   // 사용자가 '취소하고 돌아가기'를 누른 경우
   const cancelled = () => new AIError('cancelled', '분석을 취소했습니다.');
 
-  return { analyze, generateContent, generateDetailPage, suggestPhotos, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
+  return { analyze, generateContent, generateDetailPage, suggestPhotos, lookupKC, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
 })();

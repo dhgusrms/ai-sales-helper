@@ -148,14 +148,16 @@
     const certName = String(f.get('certName') || '').trim();
     const certVerified = !!f.get('certVerified');
     const t = CERT_TYPES[certType];
-    // AI와 상세페이지에는 사용자가 조회해 확인한 인증만 넘긴다
+    const lookup = t?.site === 'safety' && kcState.no === certNo && kcState.status === 'ok' ? kcState.info : null;
+    // AI와 상세페이지에는 사용자가 확인한 인증만 넘긴다
     let certification = '';
     if (t && certVerified) {
       if (certType === 'kcSupplier') certification = 'KC 공급자적합성확인 (인증번호가 없는 제도)';
       else if (certType === 'other') certification = `${certName}${certNo ? ` (번호 ${certNo})` : ''}`;
-      else certification = `${t.label} (${t.no} ${certNo})`;
+      else certification = `${t.label} (${t.no} ${certNo}${lookup ? `, 제품안전정보센터 조회: ${[lookup.product, lookup.model && `모델 ${lookup.model}`].filter(Boolean).join(' / ')}` : ''})`;
     }
-    return { certType, certNo, certName, certVerified, certification };
+    const certLookup = lookup ? { product: lookup.product, model: lookup.model, maker: lookup.maker, state: lookup.state, date: lookup.date, div: lookup.div } : null;
+    return { certType, certNo, certName, certVerified, certification, certLookup };
   }
   function updateCertUI() {
     const type = form.elements.certType.value;
@@ -163,11 +165,13 @@
     $('#certNoField').hidden = !t || type === 'kcSupplier';
     $('#certNameField').hidden = type !== 'other';
     $('#certCheck').hidden = !t;
+    $('#kcLookupBtn').hidden = t?.site !== 'safety';
+    renderKC();
     if (!t) return;
     $('#certNoField .label').innerHTML = `${t.no || '번호'} ${t.needNo ? '<b>*</b>' : '<small class="muted">(있으면)</small>'}`;
     const help = {
-      kcSafety: `인증번호를 ${CERT_SITES.safety}에서 조회해, 이 상품(모델)의 인증이 맞는지 확인해 주세요. 한 글자만 틀려도 다른 제품의 번호가 될 수 있어요.`,
-      kcConfirm: `안전확인신고번호를 ${CERT_SITES.safety}에서 조회해, 이 상품(모델)의 신고가 맞는지 확인해 주세요.`,
+      kcSafety: `<b>번호는 한 글자라도 다르면 조회되지 않아요.</b> 인증서·제품 라벨에 적힌 그대로 하이픈(-)과 끝의 영문 글자(A, B, C 등)까지 정확히 써 주세요. 번호를 쓰고 <b>조회</b>를 누르면 ${CERT_SITES.safety}에서 찾아 제품명·모델명·제조사를 보여 드려요. 내가 파는 상품(모델)이 맞는지 확인해 주세요.`,
+      kcConfirm: `<b>번호는 한 글자라도 다르면 조회되지 않아요.</b> 인증서·제품 라벨에 적힌 그대로 하이픈(-)과 끝의 영문 글자(A, B, C 등)까지 정확히 써 주세요. 번호를 쓰고 <b>조회</b>를 누르면 ${CERT_SITES.safety}에서 찾아 제품명·모델명·제조사를 보여 드려요. 내가 파는 상품(모델)이 맞는지 확인해 주세요.`,
       kcSupplier: '공급자적합성확인은 인증번호가 없는 제도예요. 제조·수입업자가 시험해 안전기준에 맞는지 스스로 확인하고, 그 시험 결과(시험성적서)를 보관해야 해요.',
       radio: `적합성평가 번호(예: R-R-…, R-C-…)를 ${CERT_SITES.radio}에서 조회해 이 상품(모델)의 번호가 맞는지 확인해 주세요.`,
       other: '인증서나 시험성적서 원본을 보고 이름과 번호를 그대로 옮겨 적어 주세요.',
@@ -176,10 +180,90 @@
     $('#certVerifiedText').textContent = type === 'kcSupplier'
       ? '이 상품이 공급자적합성확인 대상이고, 시험 결과(시험성적서)를 확인했어요'
       : type === 'other' ? '인증서 원본을 보고 내용이 맞는 것을 확인했어요'
-        : '번호를 공식 사이트에서 조회해 이 상품의 인증이 맞는 것을 확인했어요';
+        : t.site === 'safety' ? '조회된 제품이 내가 파는 상품(같은 모델)이 맞아요'
+          : '번호를 공식 사이트에서 조회해 이 상품의 인증이 맞는 것을 확인했어요';
   }
-  form.elements.certType.addEventListener('change', () => { form.elements.certVerified.checked = false; updateCertUI(); });
-  form.elements.certNo.addEventListener('input', () => { form.elements.certVerified.checked = false; });
+
+  // KC 안전인증·안전확인 번호는 Worker가 제품안전정보센터에서 실제로 조회한다.
+  // status: ''(아직 안 함) | 'loading' | 'ok'(적합) | 'notfound' | 'badstate'(적합이 아님) | 'mismatch'(인증 종류가 다름) | 'error'(조회 실패)
+  let kcState = { no: '', status: '', info: null };
+  const kcUrl = no => `https://www.safetykorea.kr/search/searchPop?certNum=${encodeURIComponent(no)}`;
+  function kcTypeMismatch(type, div) {
+    if (!div) return false;
+    if (type === 'kcSafety') return /안전확인/.test(div) && !/안전인증/.test(div);
+    if (type === 'kcConfirm') return /안전인증/.test(div) && !/안전확인/.test(div);
+    return false;
+  }
+  function renderKC() {
+    const type = form.elements.certType.value;
+    const box = $('#kcResult');
+    const check = form.elements.certVerified;
+    const isKC = CERT_TYPES[type]?.site === 'safety';
+    const no = String(form.elements.certNo.value || '').replace(/\s+/g, '').toUpperCase();
+    const s = isKC && kcState.no === no ? kcState : { status: '' };
+    // KC는 조회에 성공했거나(적합), 조회 자체가 실패해 직접 확인해야 할 때만 체크할 수 있다
+    check.disabled = isKC && !['ok', 'error'].includes(s.status);
+    if (check.disabled) check.checked = false;
+    $('#kcLookupBtn').disabled = s.status === 'loading';
+    $('#kcLookupBtn').textContent = s.status === 'loading' ? '조회 중…' : s.status ? '다시 조회' : '조회';
+    box.hidden = !isKC || !s.status || s.status === 'loading';
+    if (box.hidden) return;
+    const i = s.info || {};
+    const link = `<a href="${kcUrl(s.no)}" target="_blank" rel="noopener">공식 조회 화면 열기</a>`;
+    const rows = [['제품명', i.product], ['모델명', i.model], ['제조사', [i.maker, i.country].filter(Boolean).join(' · ')], ['인증구분', i.div], ['인증일자', i.date], ['인증상태', i.state]]
+      .filter(([, v]) => v).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
+    const kinds = { ok: 'is-ok', notfound: 'is-bad', badstate: 'is-bad', mismatch: 'is-bad', error: 'is-warn' };
+    box.className = `kc-result ${kinds[s.status] || ''}`;
+    box.innerHTML = {
+      ok: `<b>제품안전정보센터에서 확인된 번호예요.</b> 아래 제품이 내가 파는 상품(같은 모델)인지 확인해 주세요.<dl>${rows}</dl>${link}`,
+      notfound: `<b>제품안전정보센터에 없는 번호예요.</b> 번호는 한 글자라도 다르면 조회되지 않아요. 인증서·제품 라벨과 한 글자씩 비교해 하이픈(-)과 끝의 영문 글자(A, B, C 등)까지 맞는지 확인해 주세요. 0과 O, 1과 I처럼 헷갈리는 글자도 확인해 주세요. 인증을 받지 않았다면 인증 종류를 '없음 / 모름'으로 바꿔 주세요.`,
+      badstate: `<b>이 번호의 인증상태가 '${esc(i.state)}'예요.</b> 적합 상태가 아닌 인증은 판매 페이지에 쓸 수 없어요.<dl>${rows}</dl>${link}`,
+      mismatch: `<b>이 번호는 '${esc(i.div)}'이에요.</b> 위의 인증 종류를 맞게 골라 주세요.<dl>${rows}</dl>${link}`,
+      error: `<b>자동 조회를 하지 못했어요.</b> ${link}에서 직접 조회해, 내가 파는 상품(모델)의 인증이 맞는지 확인한 뒤 체크해 주세요.`,
+    }[s.status] || '';
+  }
+  async function lookupKC() {
+    const type = form.elements.certType.value;
+    const no = String(form.elements.certNo.value || '').replace(/\s+/g, '').toUpperCase();
+    if (CERT_TYPES[type]?.site !== 'safety' || !no) return;
+    if (!certNoLooksValid(type, no)) {
+      showFieldErrors([{ field: 'certNo', msg: '번호 형식이 아니에요. 인증서에 적힌 영문·숫자·하이픈(-)을 그대로 입력해 주세요.' }]);
+      return;
+    }
+    if (kcState.no === no && kcState.status === 'loading') return;
+    clearFieldError(form.elements.certNo);
+    kcState = { no, status: 'loading', info: null };
+    renderKC();
+    let status, info = null;
+    try {
+      info = await AI.lookupKC(no);
+      status = !info.found ? 'notfound' : kcTypeMismatch(type, info.div) ? 'mismatch' : info.state && info.state !== '적합' ? 'badstate' : 'ok';
+    } catch {
+      status = 'error';
+    }
+    // 조회하는 동안 번호나 종류를 바꿨으면 이 결과는 버린다
+    const nowNo = String(form.elements.certNo.value || '').replace(/\s+/g, '').toUpperCase();
+    if (nowNo !== no || form.elements.certType.value !== type) return;
+    kcState = { no, status, info };
+    renderKC();
+    $('#certCheck').querySelectorAll('.field-err').forEach(el => el.remove());
+  }
+  $('#kcLookupBtn').addEventListener('click', lookupKC);
+  // 번호를 다 쓰고 칸을 벗어나면 자동으로 한 번 조회한다
+  form.elements.certNo.addEventListener('blur', () => {
+    const no = String(form.elements.certNo.value || '').replace(/\s+/g, '').toUpperCase();
+    if (no && kcState.no !== no && certNoLooksValid(form.elements.certType.value, no)) lookupKC();
+  });
+  form.elements.certType.addEventListener('change', () => {
+    form.elements.certVerified.checked = false;
+    // 종류만 바꿨으면 같은 번호의 조회 결과로 종류를 다시 맞춰 본다
+    if (kcState.info?.found && ['ok', 'mismatch'].includes(kcState.status)) {
+      const t = form.elements.certType.value;
+      kcState.status = kcTypeMismatch(t, kcState.info.div) ? 'mismatch' : kcState.info.state && kcState.info.state !== '적합' ? 'badstate' : 'ok';
+    }
+    updateCertUI();
+  });
+  form.elements.certNo.addEventListener('input', () => { form.elements.certVerified.checked = false; renderKC(); });
 
   /* ---------- 입력 검사 ---------- */
   const LETTER_RE = /[가-힣A-Za-z]/;
@@ -227,7 +311,12 @@
       else if (p.certNo && !certNoLooksValid(p.certType, p.certNo)) err('certNo', p.certType === 'radio'
         ? '적합성평가 번호 형식이 아니에요. R-R-…, R-C-…처럼 인증서에 적힌 그대로 입력해 주세요.'
         : '번호 형식이 아니에요. 인증서에 적힌 영문·숫자·하이픈(-)을 그대로 입력해 주세요.');
-      if (!p.certVerified) err('certVerified', '확인했다면 체크해 주세요. 확인이 어려우면 인증 종류를 \'없음 / 모름\'으로 바꿔 주세요. 확인되지 않은 인증은 판매 페이지에 쓰면 안 돼요.');
+      const kc = t.site === 'safety' && p.certNo && certNoLooksValid(p.certType, p.certNo) ? (kcState.no === p.certNo ? kcState.status : '') : null;
+      if (kc === '' || kc === 'loading') err('certNo', kc === 'loading' ? '번호를 조회하고 있어요. 잠시 후 다시 눌러 주세요.' : "번호 옆 '조회'를 눌러 제품안전정보센터에서 확인해 주세요.");
+      else if (kc === 'notfound') err('certNo', '제품안전정보센터에 없는 번호예요. 하이픈(-)과 끝 글자까지 정확히 썼는지 확인하거나 인증 종류를 \'없음 / 모름\'으로 바꿔 주세요.');
+      else if (kc === 'badstate') err('certNo', `인증상태가 '${kcState.info?.state}'인 번호예요. 적합 상태가 아닌 인증은 쓸 수 없어요.`);
+      else if (kc === 'mismatch') err('certType', `조회해 보니 이 번호는 '${kcState.info?.div}'이에요. 인증 종류를 맞게 골라 주세요.`);
+      else if (!p.certVerified) err('certVerified', '확인했다면 체크해 주세요. 확인이 어려우면 인증 종류를 \'없음 / 모름\'으로 바꿔 주세요. 확인되지 않은 인증은 판매 페이지에 쓰면 안 돼요.');
     }
 
     const warnings = [];
@@ -490,6 +579,7 @@
     hideCatSuggest();
     typoItems = [];
     $('#typoBox').hidden = true;
+    kcState = { no: '', status: '', info: null };
     updateCertUI();
     updateSizeUI();
     lastPlatform = form.elements.platform.value;
@@ -789,7 +879,7 @@
         sizeShape: product.sizeShape, sizeText: product.sizeText, sizeTextUnit: product.sizeTextUnit,
         sizeW: product.sizeW, sizeD: product.sizeD, sizeH: product.sizeH, sizeUnit: product.sizeUnit,
         components: product.components, certification: product.certification,
-        certType: product.certType, certNo: product.certNo, certName: product.certName, certVerified: product.certVerified,
+        certType: product.certType, certNo: product.certNo, certName: product.certName, certVerified: product.certVerified, certLookup: product.certLookup,
         cost: product.cost, price: product.price, shipping: product.shipping, packaging: product.packaging,
         feeRate: product.feeRate, platform: product.platform, targetMargin: product.targetMargin,
         competitors: product.competitors,

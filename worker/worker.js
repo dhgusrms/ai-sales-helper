@@ -6,6 +6,9 @@
 // 모델: @cf/google/gemma-4-26b-a4b-it (2026-11-12 Cloudflare 공식 모델 목록에서 확인, 지원 종료 예정 없음)
 // 무료 한도: 하루 10,000 뉴런 (매일 오전 9시(한국 시간) 초기화). 상품 분석 1회 약 50뉴런(2026-11-13 실측) → 하루 약 200회.
 // 한도를 넘으면 무료 플랜에서는 요금 없이 요청만 실패한다.
+//
+// GET /kc?no=인증번호 : 제품안전정보센터(safetykorea.kr)의 공개 인증정보 조회 화면을 대신 열어
+// 그 번호가 실제로 있는지와 제품명·모델명·제조사·인증상태를 돌려준다. (인증키 필요 없음, 사용자가 누를 때만 1번 조회)
 
 const MODEL = '@cf/google/gemma-4-26b-a4b-it';
 
@@ -28,12 +31,12 @@ const IMAGE_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 const FORMAT = 'object';
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
     const allowed = ALLOWED_ORIGINS.includes(origin) || PREVIEW_ORIGIN.test(origin) || LOCAL_ORIGIN.test(origin);
     const cors = {
       'Access-Control-Allow-Origin': allowed ? origin : 'null',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'content-type',
       'Vary': 'Origin',
     };
@@ -42,6 +45,11 @@ export default {
     });
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+    const path = new URL(request.url).pathname;
+    if (request.method === 'GET' && path === '/kc') {
+      if (!allowed) return reply(403, { error: 'origin', message: '허용되지 않은 사이트에서 보낸 요청입니다.' });
+      return kcLookup(new URL(request.url).searchParams.get('no'), reply, ctx);
+    }
     if (request.method === 'GET') return reply(200, { ok: true, model: MODEL, message: 'AI 판매 도우미 Worker가 동작 중입니다.' });
     if (!allowed) return reply(403, { error: 'origin', message: '허용되지 않은 사이트에서 보낸 요청입니다.' });
     if (request.method !== 'POST') return reply(405, { error: 'method', message: 'POST 요청만 받습니다.' });
@@ -113,6 +121,45 @@ export default {
     return reply(200, { result, model: MODEL, usage: out?.usage, imagesUsed });
   },
 };
+
+// ---------- KC 인증번호 조회 ----------
+// 제품안전정보센터의 공개 조회 화면(인증번호를 정확히 맞춰야 나온다)을 읽는다. 같은 번호는 6시간 동안 다시 조회하지 않는다.
+const KC_NO_RE = /^[A-Z0-9][A-Z0-9-]{3,39}$/;
+const KC_NOT_FOUND = '인증정보가 존재하지 않습니다';
+async function kcLookup(raw, reply, ctx) {
+  const no = String(raw || '').replace(/\s+/g, '').toUpperCase();
+  if (!KC_NO_RE.test(no)) return reply(400, { error: 'bad-request', message: '인증번호 형식이 올바르지 않습니다.' });
+  const source = `https://www.safetykorea.kr/search/searchPop?certNum=${encodeURIComponent(no)}`;
+  const key = new Request(`https://kc-cache.invalid/${encodeURIComponent(no)}`);
+  const cache = caches.default;
+  let html;
+  const hit = await cache.match(key);
+  if (hit) html = await hit.text();
+  else {
+    try {
+      const res = await fetch(source, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ai-sales-helper/1.0)', Accept: 'text/html' } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      html = await res.text();
+    } catch (e) {
+      console.log(JSON.stringify({ kcFail: String(e?.message || e).slice(0, 200) }));
+      return reply(502, { error: 'kc-fetch', message: '제품안전정보센터에 연결하지 못했습니다.', source });
+    }
+    if (html.includes('인증정보')) {
+      ctx?.waitUntil(cache.put(key, new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'Cache-Control': 'max-age=21600' } })));
+    }
+  }
+  if (html.includes(KC_NOT_FOUND)) return reply(200, { found: false, certNum: no, source });
+  const cell = label => {
+    const m = html.match(new RegExp(`<th>\\s*${label}\\s*</th>\\s*<td[^>]*>([\\s\\S]*?)</td>`));
+    return m ? m[1].replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim() : '';
+  };
+  const info = {
+    found: true, certNum: cell('인증번호') || no, state: cell('인증상태'), date: cell('인증일자'), div: cell('인증구분'),
+    product: cell('제품명'), model: cell('모델명'), maker: cell('제조사'), country: cell('제조국'), source,
+  };
+  if (!info.state && !info.product) return reply(502, { error: 'kc-parse', message: '조회 결과를 읽지 못했습니다.', source });
+  return reply(200, info);
+}
 
 // 사진이 있으면 글과 사진을 함께 보내는 형식(OpenAI 방식)으로 만든다.
 function userContent(text, images) {

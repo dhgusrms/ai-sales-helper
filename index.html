@@ -162,7 +162,10 @@
               </label>
               <label class="field" id="certNoField" hidden>
                 <span class="label small-label">인증번호 <b>*</b></span>
-                <input type="text" name="certNo" maxlength="40" autocomplete="off" spellcheck="false" placeholder="인증서에 적힌 번호 그대로">
+                <span class="cert-no-row">
+                  <input type="text" name="certNo" maxlength="40" autocomplete="off" spellcheck="false" placeholder="예) JU071047-12002C (하이픈·끝 글자까지 그대로)">
+                  <button type="button" class="btn-outline" id="kcLookupBtn" hidden>조회</button>
+                </span>
               </label>
               <label class="field" id="certNameField" hidden>
                 <span class="label small-label">인증 이름 <b>*</b></span>
@@ -171,6 +174,7 @@
             </div>
             <div id="certCheck" hidden>
               <p class="hint small" id="certHelp"></p>
+              <div class="kc-result" id="kcResult" hidden></div>
               <label class="check"><input type="checkbox" name="certVerified"> <span id="certVerifiedText">인증번호를 공식 사이트에서 조회해 이 상품의 인증이 맞는 것을 확인했어요</span></label>
             </div>
           </div>
