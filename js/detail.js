@@ -14,6 +14,27 @@ const DetailPage = (() => {
   };
   const SLOT_LABELS = ['대표 사진', '강점 사진', '규격·구성 사진'];
 
+  /* ---------- 색 (테마 이름 또는 '#rrggbb' 아무 색) ---------- */
+  const HEX_RE = /^#[0-9a-f]{6}$/i;
+  const toRgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const toHex = rgb => '#' + rgb.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+  // amount > 0 이면 흰색 쪽으로(밝게), < 0 이면 검은색 쪽으로(어둡게)
+  const shade = (hex, amount) => toHex(toRgb(hex).map(v => amount >= 0 ? v + (255 - v) * amount : v * (1 + amount)));
+  const luminance = hex => {
+    const [r, g, b] = toRgb(hex).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  // 밝은 색이면 색 위의 글자를 검은색으로 (흰 글자가 안 보이므로)
+  const isLight = hex => luminance(hex) > 0.4;
+  function colorOf(theme) {
+    if (THEMES[theme]) { const t = THEMES[theme]; return { main: t.main, soft: t.soft, on: '#fff', label: t.label }; }
+    if (HEX_RE.test(theme || '')) {
+      const main = theme.toLowerCase();
+      return { main, soft: shade(main, 0.92), on: isLight(main) ? '#1f2937' : '#fff', label: main.toUpperCase() };
+    }
+    return colorOf('navy');
+  }
+
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // [확인 필요]는 사용자가 확인하도록 표시로 남긴다. ([일반 정보] 같은 분석용 표시는 js/ai.js에서 이미 지운다)
   const VERIFY_RE = /\s*[[(]확인 ?필요[\])]/g;
@@ -42,7 +63,7 @@ const DetailPage = (() => {
   const KIND_LABELS = { empathy: '고민 공감', points: '핵심 장점', detail: '디테일', scenes: '이런 분께', howto: '사용 방법', specs: '제품 정보', faq: '자주 묻는 질문', care: '관리·주의', closing: '마무리' };
 
   function render(m, photos) {
-    const t = THEMES[m.theme] || THEMES.navy;
+    const t = colorOf(m.theme);
     const h = m.hero || {};
     const badges = (h.badges || []).length
       ? `<div class="dp-badges">${h.badges.map((b, i) => text(`hero.badges.${i}`, b, 'span')).join('')}</div>` : '';
@@ -85,7 +106,7 @@ const DetailPage = (() => {
       return `<section class="${cls} dp-k-${sec.kind}">${text(`${p}.title`, sec.title, 'h2')}
         ${sec.lead ? text(`${p}.lead`, sec.lead, 'p').replace('class="dp-ed"', 'class="dp-ed dp-lead"') : ''}${inner}${pic}</section>`;
     }).join('');
-    return `<div class="dp dp-ai" style="--dp-main:${t.main};--dp-soft:${t.soft};width:${WIDTH}px">${hero}${body}</div>`;
+    return `<div class="dp dp-ai" style="--dp-main:${t.main};--dp-soft:${t.soft};--dp-on:${t.on};width:${WIDTH}px">${hero}${body}</div>`;
   }
 
   // 점검용: 모델 안의 모든 문장
@@ -146,5 +167,5 @@ const DetailPage = (() => {
   // 예전 양식으로 만든 상세페이지(v: 2가 아님)는 AI로 새로 만든다
   const isCurrent = m => m?.v === 2 && Array.isArray(m.sections);
 
-  return { THEMES, SLOT_LABELS, KIND_LABELS, fromAI, isCurrent, render, readText, setPath, check, exportPng };
+  return { THEMES, colorOf, shade, isLight, SLOT_LABELS, KIND_LABELS, fromAI, isCurrent, render, readText, setPath, check, exportPng };
 })();

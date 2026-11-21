@@ -1311,8 +1311,7 @@
     $('#dpAiInfo').innerHTML = `AI가 이 상품에 맞춰 <b>${m.sections.length}개 섹션</b>으로 짰어요: ${m.sections.map(x => esc(DetailPage.KIND_LABELS[x.kind] || x.kind)).join(' → ')}`
       + (m.request ? `<br>반영한 요청: “${esc(m.request)}”` : '');
     $('#dpRequest').value = m.request || '';
-    $('#dpThemes').innerHTML = Object.entries(DetailPage.THEMES).map(([id, t]) =>
-      `<button type="button" class="dp-theme ${m.theme === id ? 'is-active' : ''}" data-theme="${id}"><i style="background:${t.main}"></i>${t.label}</button>`).join('');
+    renderColorPicker(m.theme);
     const rec = DetailPage.SLOT_LABELS.map(label => m.shots?.shots.find(x => x.slot === label));
     $('#dpSlots').innerHTML = DetailPage.SLOT_LABELS.map((label, i) => {
       const p = detailPhotos[i];
@@ -1392,14 +1391,64 @@
     document.activeElement?.blur();
     makeDetailPage(current, request);
   });
-  $('#dpThemes').addEventListener('click', e => {
-    const id = e.target.closest('[data-theme]')?.dataset.theme;
-    if (!id) return;
-    current.ai.detailPage.theme = id;
+  /* ---------- 상세페이지 색: 엑셀 같은 색 선택 상자 ---------- */
+  // 테마 색 10가지(맨 윗줄) + 각 색의 밝게·어둡게 단계, 표준 색 10가지, '다른 색…'(아무 색이나)
+  const CP_BASE = [
+    ...Object.entries(DetailPage.THEMES).map(([id, t]) => ({ id, main: t.main, label: t.label })),
+    { main: '#6d28d9', label: '퍼플' }, { main: '#0f766e', label: '틸' }, { main: '#7c4a2d', label: '브라운' },
+  ];
+  const THEME_IDS = new Set(Object.keys(DetailPage.THEMES));
+  const CP_STEPS = [[0.6, '60% 밝게'], [0.4, '40% 밝게'], [0.2, '20% 밝게'], [-0.25, '25% 어둡게'], [-0.5, '50% 어둡게']];
+  const CP_STANDARD = [['#c00000', '진한 빨강'], ['#ff0000', '빨강'], ['#ffc000', '주황'], ['#ffff00', '노랑'], ['#92d050', '연두'],
+    ['#00b050', '초록'], ['#00b0f0', '하늘'], ['#0070c0', '파랑'], ['#002060', '진한 파랑'], ['#7030a0', '보라']];
+  const cpCell = (value, color, title, active) =>
+    `<button type="button" class="cp-cell ${active ? 'is-active' : ''}" data-color="${value}" style="background:${color}" title="${title}" aria-label="${title}"></button>`;
+  function renderColorPicker(theme) {
+    const c = DetailPage.colorOf(theme);
+    $('#dpColorBtn i').style.background = c.main;
+    $('#dpColorBtn span').textContent = c.label;
+    $('#dpColorNative').value = c.main;
+    $('#dpColorWarn').hidden = !DetailPage.isLight(c.main);
+    const is = hex => hex.toLowerCase() === c.main;
+    $('#dpColorPop').innerHTML = `<h4>테마 색</h4>
+      <div class="cp-grid">${CP_BASE.map(b => cpCell(b.id || b.main, b.main, b.label, b.id ? theme === b.id : is(b.main))).join('')}</div>
+      <div class="cp-grid cp-tints">${CP_STEPS.map(([amt, name]) => CP_BASE.map(b => {
+        const hex = DetailPage.shade(b.main, amt);
+        return cpCell(hex, hex, `${b.label}, ${name}`, is(hex) && !THEME_IDS.has(theme));
+      }).join('')).join('')}</div>
+      <h4>표준 색</h4>
+      <div class="cp-grid">${CP_STANDARD.map(([hex, name]) => cpCell(hex, hex, name, is(hex))).join('')}</div>
+      <button type="button" class="cp-more" id="dpColorMore"><i></i>다른 색…</button>`;
+  }
+  function setDetailColor(value) {
+    current.ai.detailPage.theme = value;
     current.saved = Store.save(current);
-    renderDetailPanel();
+    renderColorPicker(value);
     renderDetailPreview();
+  }
+  const cpOpen = open => {
+    $('#dpColorPop').hidden = !open;
+    $('#dpColorBtn').setAttribute('aria-expanded', String(open));
+  };
+  $('#dpColorBtn').addEventListener('click', () => cpOpen($('#dpColorPop').hidden));
+  $('#dpColorPop').addEventListener('click', e => {
+    if (e.target.closest('#dpColorMore')) { cpOpen(false); $('#dpColorNative').click(); return; }
+    const v = e.target.closest('[data-color]')?.dataset.color;
+    if (!v) return;
+    setDetailColor(v);
+    cpOpen(false);
   });
+  // '다른 색…': 브라우저 색 고르기 창. 고르는 동안 미리보기에 바로 보여 주고, 다 고르면 저장한다.
+  $('#dpColorNative').addEventListener('input', e => {
+    const hex = e.target.value;
+    current.ai.detailPage.theme = hex;
+    renderDetailPreview();
+    $('#dpColorBtn i').style.background = hex;
+    $('#dpColorBtn span').textContent = hex.toUpperCase();
+  });
+  $('#dpColorNative').addEventListener('change', e => setDetailColor(e.target.value));
+  document.addEventListener('click', e => { if (!e.target.closest('#dpColor')) cpOpen(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#dpColorPop').hidden) { cpOpen(false); $('#dpColorBtn').focus(); } });
   $('#dpSlots').addEventListener('click', e => {
     const pick = e.target.closest('[data-slot-pick]')?.dataset.slotPick;
     const clear = e.target.closest('[data-slot-clear]')?.dataset.slotClear;
