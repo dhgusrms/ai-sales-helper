@@ -210,12 +210,22 @@
     if (box.hidden) return;
     const i = s.info || {};
     const link = `<a href="${kcUrl(s.no)}" target="_blank" rel="noopener">공식 조회 화면 열기</a>`;
-    const rows = [['제품명', i.product], ['모델명', i.model], ['제조사', [i.maker, i.country].filter(Boolean).join(' · ')], ['인증구분', i.div], ['인증일자', i.date], ['인증상태', i.state]]
+    const rows = [['제품명', i.product], ['제품 분류', i.category], ['모델명', i.model], ['브랜드', i.brand], ['제조사', [i.maker, i.country].filter(Boolean).join(' · ')], ['인증구분', i.div], ['인증일자', i.date], ['인증상태', i.state]]
       .filter(([, v]) => v).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
     const kinds = { ok: 'is-ok', notfound: 'is-bad', badstate: 'is-bad', mismatch: 'is-bad', error: 'is-warn' };
-    box.className = `kc-result ${kinds[s.status] || ''}`;
+    // 인증받은 제품과 판매 상품이 다른 종류라고 AI가 판단했으면 쓸 수 없다
+    const m = s.status === 'ok' ? currentKcMatch() : null;
+    if (m?.verdict === 'different') { check.disabled = true; check.checked = false; }
+    box.className = `kc-result ${m?.verdict === 'different' ? 'is-bad' : kinds[s.status] || ''}`;
+    const matchLine = !m ? '' : m.verdict === 'checking' ? '<p class="kc-match">AI가 이 인증이 판매하려는 상품의 것인지 확인하고 있어요…</p>'
+      : m.verdict === 'same' ? `<p class="kc-match"><b>AI 확인:</b> 판매하려는 상품과 같은 종류의 제품 인증이에요. ${esc(m.reason)}</p>`
+        : m.verdict === 'unsure' ? `<p class="kc-match"><b>AI 확인:</b> 같은 제품인지 판단하기 어려워요. 제품명·모델명을 직접 비교해 주세요. ${esc(m.reason)}</p>` : '';
+    if (m?.verdict === 'different') {
+      box.innerHTML = `<b>판매하려는 상품과 다른 제품의 인증번호예요.</b> ${esc(m.reason)} 이 상품에 맞는 인증번호를 쓰거나, 인증이 없다면 인증 종류를 '없음 / 모름'으로 바꿔 주세요.<dl>${rows}</dl>${link}`;
+      return;
+    }
     box.innerHTML = {
-      ok: `<b>제품안전정보센터에서 확인된 번호예요.</b> 아래 제품이 내가 파는 상품(같은 모델)인지 확인해 주세요.<dl>${rows}</dl>${link}`,
+      ok: `<b>제품안전정보센터에서 확인된 번호예요.</b> 아래 제품이 내가 파는 상품(같은 모델)인지 확인해 주세요.<dl>${rows}</dl>${matchLine}${link}`,
       notfound: `<b>제품안전정보센터에 없는 번호예요.</b> 번호는 한 글자라도 다르면 조회되지 않아요. 인증서·제품 라벨과 한 글자씩 비교해 하이픈(-)과 끝의 영문 글자(A, B, C 등)까지 맞는지 확인해 주세요. 0과 O, 1과 I처럼 헷갈리는 글자도 확인해 주세요. 인증을 받지 않았다면 인증 종류를 '없음 / 모름'으로 바꿔 주세요.`,
       badstate: `<b>이 번호의 인증상태가 '${esc(i.state)}'예요.</b> 적합 상태가 아닌 인증은 판매 페이지에 쓸 수 없어요.<dl>${rows}</dl>${link}`,
       mismatch: `<b>이 번호는 '${esc(i.div)}'이에요.</b> 위의 인증 종류를 맞게 골라 주세요.<dl>${rows}</dl>${link}`,
@@ -244,10 +254,43 @@
     // 조회하는 동안 번호나 종류를 바꿨으면 이 결과는 버린다
     const nowNo = String(form.elements.certNo.value || '').replace(/\s+/g, '').toUpperCase();
     if (nowNo !== no || form.elements.certType.value !== type) return;
-    kcState = { no, status, info };
+    kcState = { no, status, info, match: null };
     renderKC();
     $('#certCheck').querySelectorAll('.field-err').forEach(el => el.remove());
+    if (status === 'ok') ensureKcMatch();
   }
+
+  // 인증받은 제품과 판매 상품이 같은 종류인지 AI가 판단한다. 상품명·카테고리·설명이 바뀌면 다시 판단한다.
+  const kcMatchKey = () => {
+    const p = readForm();
+    return [kcState.no, p.name, p.category, p.description.slice(0, 400)].join('|');
+  };
+  function currentKcMatch() {
+    const m = kcState.match;
+    return m && m.key === kcMatchKey() ? m : null;
+  }
+  async function ensureKcMatch() {
+    if (kcState.status !== 'ok' || !kcState.info || !AI.isReady()) return null;
+    const p = readForm();
+    if (!p.name) return null;
+    const key = kcMatchKey();
+    if (kcState.match?.key === key && kcState.match.verdict !== 'checking') return kcState.match;
+    if (kcState.match?.key === key && kcState.match.pending) return kcState.match.pending;
+    const state = kcState;
+    const pending = AI.checkKcMatch(p, state.info)
+      .then(r => r, () => null) // AI 판단에 실패하면 막지 않고 사용자 확인(체크)에 맡긴다
+      .then(r => {
+        if (kcState !== state || kcState.match?.key !== key) return null;
+        kcState.match = r ? { key, ...r } : null;
+        renderKC();
+        return kcState.match;
+      });
+    state.match = { key, verdict: 'checking', pending };
+    renderKC();
+    return pending;
+  }
+  // 상품명을 다 쓰고 나오면, 이미 조회한 인증과 맞는지 다시 판단한다
+  ['name', 'description'].forEach(n => form.elements[n].addEventListener('blur', () => { if (kcState.status === 'ok') ensureKcMatch(); }));
   $('#kcLookupBtn').addEventListener('click', lookupKC);
   // 번호를 다 쓰고 칸을 벗어나면 자동으로 한 번 조회한다
   form.elements.certNo.addEventListener('blur', () => {
@@ -315,6 +358,7 @@
       if (kc === '' || kc === 'loading') err('certNo', kc === 'loading' ? '번호를 조회하고 있어요. 잠시 후 다시 눌러 주세요.' : "번호 옆 '조회'를 눌러 제품안전정보센터에서 확인해 주세요.");
       else if (kc === 'notfound') err('certNo', '제품안전정보센터에 없는 번호예요. 하이픈(-)과 끝 글자까지 정확히 썼는지 확인하거나 인증 종류를 \'없음 / 모름\'으로 바꿔 주세요.');
       else if (kc === 'badstate') err('certNo', `인증상태가 '${kcState.info?.state}'인 번호예요. 적합 상태가 아닌 인증은 쓸 수 없어요.`);
+      else if (kc === 'ok' && currentKcMatch()?.verdict === 'different') err('certNo', `판매하려는 상품과 다른 제품의 인증번호예요. ${currentKcMatch().reason} 맞는 번호를 쓰거나 인증 종류를 '없음 / 모름'으로 바꿔 주세요.`);
       else if (kc === 'mismatch') err('certType', `조회해 보니 이 번호는 '${kcState.info?.div}'이에요. 인증 종류를 맞게 골라 주세요.`);
       else if (!p.certVerified) err('certVerified', '확인했다면 체크해 주세요. 확인이 어려우면 인증 종류를 \'없음 / 모름\'으로 바꿔 주세요. 확인되지 않은 인증은 판매 페이지에 쓰면 안 돼요.');
     }
@@ -820,6 +864,12 @@
   form.addEventListener('submit', async e => {
     e.preventDefault();
     if (isBusy()) return; // AI 작업이 끝날 때까지 다시 분석하지 않는다
+    // KC 인증을 조회했다면, 이 상품의 인증이 맞는지 AI 판단이 끝난 뒤에 검사한다
+    if (kcState.status === 'ok' && !currentKcMatch()?.reason && form.elements.name.value.trim()) {
+      $('#formError').textContent = 'KC 인증이 이 상품의 것인지 확인하고 있어요…';
+      await ensureKcMatch();
+      $('#formError').textContent = '';
+    }
     const product = readForm();
     const { errors, warnings } = validate(product);
     showFieldErrors(errors);

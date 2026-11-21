@@ -155,7 +155,8 @@ async function kcLookup(raw, reply, ctx) {
   };
   const info = {
     found: true, certNum: cell('인증번호') || no, state: cell('인증상태'), date: cell('인증일자'), div: cell('인증구분'),
-    product: cell('제품명'), model: cell('모델명'), maker: cell('제조사'), country: cell('제조국'), source,
+    product: cell('제품명'), model: cell('모델명'), brand: cell('브랜드명'), category: cell('제품분류코드'),
+    maker: cell('제조사'), country: cell('제조국'), source,
   };
   if (!info.state && !info.product) return reply(502, { error: 'kc-parse', message: '조회 결과를 읽지 못했습니다.', source });
   return reply(200, info);

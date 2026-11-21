@@ -146,6 +146,7 @@ input[data-money], input[data-num] { text-align: right; font-variant-numeric: ta
 .kc-result dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 8px 0 6px; color: var(--text); }
 .kc-result dt { color: var(--muted); }
 .kc-result dd { margin: 0; font-weight: 600; }
+.kc-match { margin: 4px 0 8px; font-size: 17px; color: var(--text); }
 .check input[type=checkbox]:disabled + span { color: var(--muted); }
 .size-shape { margin-bottom: 10px; }
 .size-row { display: flex; align-items: flex-end; gap: 8px; }

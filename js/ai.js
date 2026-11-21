@@ -934,6 +934,40 @@ ${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함�
     return { ...out, model, withPhotos: images.length };
   }
 
+  // KC 인증번호로 조회한 제품(인증받은 제품)과 판매하려는 상품이 같은 종류인지 판단한다
+  const KC_MATCH_SYSTEM = `당신은 한국 제품안전(KC 인증) 확인을 돕는 도우미입니다.
+판매자가 입력한 KC 인증번호를 제품안전정보센터에서 조회한 결과(인증받은 제품)와, 판매자가 팔려는 상품이 같은 종류(품목)의 제품인지 판단합니다.
+- verdict "different": 제품 종류가 분명히 다를 때. 예) 완구로 인증받은 번호인데 판매 상품은 청소용 스퀴지 / 어린이 완구 인증인데 판매 상품은 성인용 생활용품 / 전기히터 인증인데 판매 상품은 의류.
+- verdict "same": 같은 종류의 제품일 때. 이름 표현이 달라도 같은 품목이면 same. 예) 관상어용히터 ↔ 어항 히터, 완구 ↔ 아동용 블록 장난감.
+- verdict "unsure": 주어진 정보만으로는 판단하기 어려울 때.
+- 모델명·브랜드가 같은지는 판단하지 않습니다(판매자가 따로 확인합니다). 제품 종류만 봅니다.
+- reason: 판단 이유를 한국어 한 문장으로. different면 인증받은 제품이 무엇이고 판매 상품이 무엇인지 함께 씁니다.`;
+  const KC_MATCH_SCHEMA = {
+    type: 'object',
+    properties: { verdict: { type: 'string', enum: ['same', 'different', 'unsure'] }, reason: { type: 'string' } },
+    required: ['verdict', 'reason'], additionalProperties: false,
+  };
+  async function checkKcMatch(product, info, signal) {
+    const p = getProvider();
+    const request = p === 'qwen' ? requestQwen : p === 'cloud' ? requestCloud : requestClaude;
+    const text = `[인증받은 제품 - 제품안전정보센터 조회 결과]
+제품명: ${info.product || '없음'}
+제품 분류: ${info.category || '없음'}
+인증 구분: ${info.div || '없음'}
+모델명: ${info.model || '없음'}
+
+[판매하려는 상품 - 판매자 입력]
+상품명: ${product.name}
+카테고리: ${product.category || '입력 안 함'}
+제품 설명: ${String(product.description || '').slice(0, 400) || '입력 안 함'}
+
+두 제품이 같은 종류(품목)인지 판단해 주세요.`;
+    const { parsed } = await request(KC_MATCH_SYSTEM, text, KC_MATCH_SCHEMA, signal);
+    const verdict = ['same', 'different', 'unsure'].includes(parsed?.verdict) ? parsed.verdict : 'unsure';
+    const reason = typeof parsed?.reason === 'string' ? parsed.reason.replace(/\s+/g, ' ').trim() : '';
+    return { verdict, reason };
+  }
+
   const CAT_SYSTEM = `당신은 온라인 쇼핑몰의 상품 카테고리 분류 도우미입니다.
 상품명을 보고, 주어진 대분류 목록 중 이 상품을 등록하기에 가장 알맞은 대분류 하나를 고릅니다.
 - category에는 목록에 있는 이름을 글자 그대로 씁니다. 목록에 없는 이름을 만들지 마세요.
@@ -1003,5 +1037,5 @@ ${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함�
   // 사용자가 '취소하고 돌아가기'를 누른 경우
   const cancelled = () => new AIError('cancelled', '분석을 취소했습니다.');
 
-  return { analyze, generateContent, generateDetailPage, suggestPhotos, lookupKC, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
+  return { analyze, generateContent, generateDetailPage, suggestPhotos, lookupKC, checkKcMatch, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
 })();
