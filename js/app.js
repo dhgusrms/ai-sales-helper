@@ -1332,8 +1332,8 @@
     $('#dpShots').innerHTML = r ? `<ul class="dp-shots">${r.shots.slice(0, 4).map(x => `<li>
         <span class="dp-shot-slot ${x.slot === '추가 사진' ? 'is-extra' : ''}">${esc(x.slot)}</span>
         <b>${esc(x.title)}</b>${x.why ? `<p class="why">${esc(x.why)}</p>` : ''}
-        ${x.prompt ? `<div class="dp-prompt"><p>${esc(x.prompt)}</p><button type="button" class="link-btn" data-copy-prompt="${esc(x.prompt)}">프롬프트 복사</button></div>
-        ${x.prompt_en ? `<details class="dp-prompt-en"><summary>영어 프롬프트</summary><p>${esc(x.prompt_en)}</p><button type="button" class="link-btn" data-copy-prompt="${esc(x.prompt_en)}">영어 복사</button></details>` : ''}`
+        ${x.prompt ? `<div class="dp-prompt">${copyBtn(x.prompt, '한국어 프롬프트 복사')}<p>${esc(x.prompt)}</p></div>
+        ${x.prompt_en ? `<details class="dp-prompt-en"><summary>영어 프롬프트</summary><div class="dp-prompt">${copyBtn(x.prompt_en, '영어 프롬프트 복사')}<p>${esc(x.prompt_en)}</p></div></details>` : ''}`
         : `<p>${esc(x.how || '')}</p>`}</li>`).join('')}</ul>
         <p class="dp-shot-note">이미지 생성 AI에 <b>실제 상품 사진을 함께 첨부</b>하고 프롬프트를 붙여 넣으세요. 만든 이미지가 실제 상품과 모양·색·구성이 다르면 쓰지 마세요. 실제와 다른 이미지는 허위 표시가 될 수 있어요.</p>
         ${r.current ? `<p class="dp-shot-now"><b>올린 사진 보기</b> ${esc(r.current)}</p>` : ''}` : '';
@@ -1342,9 +1342,17 @@
     $('#dpShotMsg').hidden = true;
   }
   let shotBusyFor = null;
+  // 프롬프트 상자 오른쪽 위의 작은 복사 버튼 (누르면 바로 복사, 잠깐 '복사됨' 표시)
+  const COPY_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  const copyBtn = (text, label) => `<button type="button" class="copy-mini" data-copy-prompt="${esc(text)}" title="${label}" aria-label="${label}">${COPY_ICON}<span>복사</span></button>`;
   $('#dpShots').addEventListener('click', async e => {
     const btn = e.target.closest('[data-copy-prompt]');
-    if (btn) flash(btn, (await copyText(btn.dataset.copyPrompt)) ? '복사됨' : '복사 실패');
+    if (!btn) return;
+    const ok = await copyText(btn.dataset.copyPrompt);
+    btn.classList.toggle('is-copied', ok);
+    btn.querySelector('span').textContent = ok ? '복사됨' : '실패';
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => { btn.classList.remove('is-copied'); btn.querySelector('span').textContent = '복사'; }, 1500);
   });
   $('#dpShotBtn').addEventListener('click', async () => {
     if (!AI.isReady()) { openSettings(); return; }
