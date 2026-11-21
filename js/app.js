@@ -1329,22 +1329,30 @@
     const r = current.ai.detailPage.shots;
     if (shotBusyFor === current) return;
     $('#dpShotIntro').hidden = !!r;
-    $('#dpShots').innerHTML = r ? `<ul class="dp-shots">${r.shots.map(x => `<li>
+    $('#dpShots').innerHTML = r ? `<ul class="dp-shots">${r.shots.slice(0, 4).map(x => `<li>
         <span class="dp-shot-slot ${x.slot === '추가 사진' ? 'is-extra' : ''}">${esc(x.slot)}</span>
-        <b>${esc(x.title)}</b><p>${esc(x.how)}</p>${x.why ? `<p class="why">${esc(x.why)}</p>` : ''}</li>`).join('')}</ul>
+        <b>${esc(x.title)}</b>${x.why ? `<p class="why">${esc(x.why)}</p>` : ''}
+        ${x.prompt ? `<div class="dp-prompt"><p>${esc(x.prompt)}</p><button type="button" class="link-btn" data-copy-prompt="${esc(x.prompt)}">프롬프트 복사</button></div>
+        ${x.prompt_en ? `<details class="dp-prompt-en"><summary>영어 프롬프트</summary><p>${esc(x.prompt_en)}</p><button type="button" class="link-btn" data-copy-prompt="${esc(x.prompt_en)}">영어 복사</button></details>` : ''}`
+        : `<p>${esc(x.how || '')}</p>`}</li>`).join('')}</ul>
+        <p class="dp-shot-note">이미지 생성 AI에 <b>실제 상품 사진을 함께 첨부</b>하고 프롬프트를 붙여 넣으세요. 만든 이미지가 실제 상품과 모양·색·구성이 다르면 쓰지 마세요. 실제와 다른 이미지는 허위 표시가 될 수 있어요.</p>
         ${r.current ? `<p class="dp-shot-now"><b>올린 사진 보기</b> ${esc(r.current)}</p>` : ''}` : '';
     $('#dpShotBtn').disabled = false;
-    $('#dpShotBtn').textContent = r ? '다시 추천 받기' : 'AI에게 사진 추천 받기';
+    $('#dpShotBtn').textContent = r ? '다시 추천 받기' : 'AI에게 프롬프트 추천 받기';
     $('#dpShotMsg').hidden = true;
   }
   let shotBusyFor = null;
+  $('#dpShots').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-copy-prompt]');
+    if (btn) flash(btn, (await copyText(btn.dataset.copyPrompt)) ? '복사됨' : '복사 실패');
+  });
   $('#dpShotBtn').addEventListener('click', async () => {
     if (!AI.isReady()) { openSettings(); return; }
     const rec = current;
     const page = rec.ai.detailPage;
     shotBusyFor = rec;
     $('#dpShotBtn').disabled = true;
-    $('#dpShotBtn').textContent = 'AI가 추천하는 중… (10~30초)';
+    $('#dpShotBtn').textContent = 'AI가 프롬프트를 쓰는 중… (20~40초)';
     $('#dpShotMsg').hidden = true;
     try {
       const urls = rec.id === detailPhotosFor ? detailPhotos.map(p => p?.url) : [];

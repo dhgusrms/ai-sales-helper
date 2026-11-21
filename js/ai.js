@@ -849,26 +849,33 @@ ${request}
   // 상품명으로 대분류 추천: 그 판매처의 대분류 목록 안에서만 하나 고른다.
   // 상세페이지에 넣을 사진을 무엇을 어떻게 찍으면 좋을지 추천한다
   const SHOT_SLOTS = ['대표 사진', '강점 사진', '규격·구성 사진'];
-  const SHOT_SYSTEM = `당신은 한국 온라인 쇼핑몰 상세페이지용 상품 사진을 기획하는 촬영 디렉터입니다.
-판매자는 사진 전문가가 아니고 휴대폰으로 집에서 찍습니다. 이 상품과 이 상세페이지에 꼭 맞는 사진을 추천합니다.
-- shots의 처음 3개는 차례대로 slot이 "대표 사진", "강점 사진", "규격·구성 사진"인 사진입니다. 각 사진이 상세페이지의 어디에 들어가는지 보고 그 자리의 내용을 보여 주는 장면을 고릅니다.
-- 그다음 1~3개는 slot을 "추가 사진"으로 두고, 쇼핑몰 추가 이미지나 상세페이지 보강용으로 찍어 두면 좋은 장면을 추천합니다.
-- title: 찍을 장면을 한 줄로 (예: "뚜껑을 연 채 위에서 내려다본 사진").
-- how: 휴대폰으로 따라 할 수 있게 구체적으로 1~2문장. 놓는 법, 각도(정면·45도·위에서), 배경, 빛, 함께 둘 소품, 손이나 크기 비교 물건 등.
-- why: 이 사진이 구매자의 어떤 궁금증·걱정을 풀어 주는지 한 문장.
-- 이 상품에서만 의미 있는 장면을 고르세요. "밝은 곳에서 찍으세요" 같은 어느 상품에나 맞는 말만 쓰지 마세요.
-- 입력에 없는 구성품·기능을 있다고 가정하지 마세요.
-- current: 판매자가 올린 사진이 있으면, 그 사진들이 위 추천과 비교해 어떤지와 무엇을 다시 찍으면 좋을지 1~2문장. 사진이 없으면 빈 문자열("").
-- 모든 글은 한국어 존댓말로 씁니다.`;
+  const SHOT_SYSTEM = `당신은 한국 온라인 쇼핑몰 상세페이지용 상품 이미지를 기획하고, 이미지 생성 AI(나노바나나, ChatGPT 이미지, 미드저니 등)에 넣을 프롬프트를 쓰는 전문가입니다.
+판매자는 실제 상품 사진을 참고 이미지로 함께 첨부해 이 프롬프트로 이미지를 만듭니다. 이 상품과 이 상세페이지에 꼭 맞는 이미지 4장의 프롬프트를 씁니다.
+- shots의 처음 3개는 차례대로 slot이 "대표 사진", "강점 사진", "규격·구성 사진"입니다. 각 이미지가 상세페이지의 어디에 들어가는지 보고 그 자리의 내용을 보여 주는 장면으로 씁니다.
+- 4번째 1개는 slot을 "추가 사진"으로 두고, 쇼핑몰 추가 이미지나 상세페이지 보강용으로 가장 쓸모 있는 장면 하나로 씁니다. shots는 모두 4개입니다.
+- title: 만들 장면을 한 줄로 (예: "원목 책상 위에서 45도로 내려다본 연출 사진").
+- prompt: 이미지 생성 AI에 그대로 붙여 넣을 한국어 프롬프트 3~5문장.
+  · 반드시 "첨부한 사진 속 상품의 모양·색·재질·크기 비율·로고는 그대로 유지하고"라는 뜻을 넣습니다.
+  · 장면, 배경, 함께 둘 소품, 구도와 카메라 각도(정면·45도·위에서), 조명, 분위기, 화면 비율(대표 사진은 1:1 정사각형, 나머지는 4:3 가로)을 구체적으로 씁니다.
+  · "이미지에 글자·워터마크·로고를 새로 넣지 말 것"을 넣습니다.
+  · 상품 정보에 없는 구성품·기능·색상은 장면에 넣지 않습니다. 프롬프트에는 "첨부한 사진에 없는 구성품이나 색상을 새로 만들지 말 것"이라고 씁니다("입력" 같은 말은 이미지 AI가 모르니 쓰지 않습니다). 사람 손이나 크기 비교용 물건은 넣어도 됩니다.
+- prompt_en: prompt와 같은 내용의 영어 프롬프트 (영어로 쓰는 이미지 AI용).
+- why: 이 이미지가 구매자의 어떤 궁금증·걱정을 풀어 주는지 한국어 한 문장.
+- 이 상품에서만 의미 있는 장면을 고르세요. 어느 상품에나 맞는 흔한 장면만 쓰지 마세요.
+- current: 판매자가 올린 사진이 있으면, 그 사진이 참고 이미지로 쓰기에 어떤지(상품 전체가 보이는지, 밝기, 배경)와 더 좋은 참고 사진을 위한 조언 1~2문장. 사진이 없으면 빈 문자열("").
+- 한국어 글은 존댓말로 씁니다.`;
   const SHOT_SCHEMA = {
     type: 'object',
     properties: {
       shots: {
-        type: 'array', minItems: 4, maxItems: 6,
+        type: 'array', minItems: 4, maxItems: 4,
         items: {
           type: 'object',
-          properties: { slot: { type: 'string', enum: [...SHOT_SLOTS, '추가 사진'] }, title: { type: 'string' }, how: { type: 'string' }, why: { type: 'string' } },
-          required: ['slot', 'title', 'how', 'why'], additionalProperties: false,
+          properties: {
+            slot: { type: 'string', enum: [...SHOT_SLOTS, '추가 사진'] }, title: { type: 'string' },
+            prompt: { type: 'string' }, prompt_en: { type: 'string' }, why: { type: 'string' },
+          },
+          required: ['slot', 'title', 'prompt', 'prompt_en', 'why'], additionalProperties: false,
         },
       },
       current: { type: 'string' },
@@ -890,8 +897,8 @@ ${request}
   function normalizeShots(r) {
     const clean = v => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
     const all = (Array.isArray(r?.shots) ? r.shots : [])
-      .map(x => ({ slot: clean(x?.slot), title: clean(x?.title), how: clean(x?.how), why: clean(x?.why) }))
-      .filter(x => x.title);
+      .map(x => ({ slot: clean(x?.slot), title: clean(x?.title), prompt: clean(x?.prompt), prompt_en: clean(x?.prompt_en), why: clean(x?.why) }))
+      .filter(x => x.title && x.prompt);
     const used = new Set();
     const main = SHOT_SLOTS.map(slot => {
       const i = all.findIndex((x, j) => !used.has(j) && x.slot === slot);
@@ -899,7 +906,8 @@ ${request}
       used.add(i);
       return all[i];
     }).filter(Boolean);
-    const extra = all.filter((x, j) => !used.has(j)).slice(0, 3).map(x => ({ ...x, slot: '추가 사진' }));
+    // 대표·강점·규격 3장 + 추가 1장, 모두 4장 (화면에 한 줄로 4칸)
+    const extra = all.filter((x, j) => !used.has(j)).slice(0, 4 - main.length).map(x => ({ ...x, slot: '추가 사진' }));
     return { shots: [...main, ...extra], current: clean(r?.current) };
   }
   async function suggestPhotos(product, ai, detailPage, photoUrls, signal) {
@@ -924,8 +932,8 @@ ${lines('주요 특징', ai.features)}${lines('강조할 장점', (ai.selling_po
 === 상세페이지에서 사진이 들어가는 자리 ===
 ${shotPlaces(detailPage)}
 
-${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함께 보냅니다 (대표·강점·규격 순서, 빈 칸은 빠짐).` : '판매자가 아직 사진을 올리지 않았습니다. current는 빈 문자열로 두세요.'}
-이 상품의 상세페이지에 넣을 사진을 무엇을, 어떻게 찍으면 좋을지 추천해 주세요.`;
+${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함께 보냅니다 (대표·강점·규격 순서, 빈 칸은 빠짐).` : '판매자가 아직 사진을 올리지 않았습니다. current는 빈 문자열로 두세요. (판매자는 나중에 실제 상품 사진을 참고 이미지로 첨부합니다)'}
+이 상품의 상세페이지에 넣을 이미지 4장을 만들 이미지 생성 AI 프롬프트를 써 주세요.`;
     const { parsed, model } = p === 'qwen' ? await requestQwen(SHOT_SYSTEM, text, SHOT_SCHEMA, signal)
       : p === 'cloud' ? await requestCloud(SHOT_SYSTEM, text, SHOT_SCHEMA, signal, images)
         : await requestClaude(SHOT_SYSTEM, text, SHOT_SCHEMA, signal);
