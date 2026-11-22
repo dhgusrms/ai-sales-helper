@@ -77,7 +77,10 @@
       packaging: parseNum(f.get('packaging')),
       feeRate: parseNum(f.get('feeRate')),
       platform,
-      targetMargin: Number(f.get('targetMargin')) || 30, // 목록에서 고른 값 (기본 30%)
+      // 목표 마진율: 목록에서 고른 값 (기본 30%), '직접 입력'이면 입력한 값
+      targetMarginCustom: f.get('targetMargin') === 'custom',
+      targetMarginEntered: String(f.get('targetMarginCustom') || '').trim() !== '',
+      targetMargin: f.get('targetMargin') === 'custom' ? parseNum(f.get('targetMarginCustom')) : Number(f.get('targetMargin')) || 30,
       photos,
       docs,
       competitors,
@@ -374,6 +377,8 @@
     if (p.price < MIN_PRICE) err('price', `판매가는 ${MIN_PRICE.toLocaleString('ko-KR')}원 이상이어야 해요.`);
     if (p.platform === 'custom' && !p.feeEntered) err('feeRate', '수수료를 입력해 주세요. 수수료가 없으면 0을 입력해 주세요.');
     else if (p.feeRate >= 100) err('feeRate', '수수료는 100% 미만이어야 해요.');
+    if (p.targetMarginCustom && !p.targetMarginEntered) err('targetMarginCustom', '목표 마진율을 입력해 주세요.');
+    else if (p.targetMarginCustom && p.targetMargin >= 100) err('targetMarginCustom', '목표 마진율은 100% 미만이어야 해요.');
 
     SIZE_SHAPES[p.sizeShape].forEach((label, i) => {
       const k = SIZE_KEYS[i];
@@ -657,13 +662,28 @@
   fillMains();
 
   form.addEventListener('input', liveCalc);
-  // 목표 마진율 목록: 5% ~ 90%, 5% 단위 (기본 30%)
+  // 목표 마진율 목록: 5% ~ 90%, 5% 단위 (기본 30%) + 맨 아래 '직접 입력'
   form.elements.targetMargin.innerHTML = Array.from({ length: 18 }, (_, i) => (i + 1) * 5)
-    .map(v => `<option value="${v}"${v === 30 ? ' selected' : ''}>${v}%</option>`).join('');
-  form.elements.targetMargin.addEventListener('change', liveCalc);
+    .map(v => `<option value="${v}"${v === 30 ? ' selected' : ''}>${v}%</option>`).join('')
+    + '<option value="custom">직접 입력</option>';
+  // '직접 입력'을 고르면 아래에 입력 칸을 보여 주고, 목록 값으로 돌아가면 숨긴다
+  function updateMarginUI() {
+    const custom = form.elements.targetMargin.value === 'custom';
+    $('#marginCustom').hidden = !custom;
+    if (!custom) {
+      form.elements.targetMarginCustom.classList.remove('invalid');
+      form.elements.targetMargin.closest('.field').querySelectorAll('.field-err').forEach(x => x.remove());
+    }
+    return custom;
+  }
+  form.elements.targetMargin.addEventListener('change', () => {
+    if (updateMarginUI()) form.elements.targetMarginCustom.focus();
+    liveCalc();
+  });
 
   function clearForm() {
     form.reset();
+    updateMarginUI();
     photos = [];
     renderThumbs();
     showFieldErrors([]);
