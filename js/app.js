@@ -1286,8 +1286,8 @@
       ${ai.missing_info?.length ? box('더 정확한 분석을 위해 필요한 정보', list(ai.missing_info, 'missing_info')) : ''}
       </div>
       <p class="disclaimer"><mark class="general">일반 정보</mark> 표시는 입력한 정보가 아니라 이 상품군에 대해 AI가 알고 있는 일반적인 내용입니다. 이 상품에 그대로 해당하는지는 직접 판단해 주세요.<br>
-      <mark class="verify">확인 필요</mark> 표시는 이 상품에 대한 내용이지만 입력한 자료로 확인되지 않은 것입니다. 판매 전에 사실인지 직접 확인해 주세요. 각 항목의 <b>수정</b> 버튼으로 문구를 고칠 수 있고, 고친 내용은 저장된 분석에도 반영됩니다.<br>
-      AI 분석은 입력한 상품 정보, 사진, 경쟁상품 정보와 업로드 자료만을 근거로 작성되었으며 실시간 시장 데이터를 조회하지 않았습니다. (모델: ${esc(ai.model || AI.MODEL)})</p>
+      <mark class="verify">확인 필요</mark> 표시는 이 상품에 대한 내용이지만 입력한 자료로 확인되지 않은 것입니다. 판매 전에 사실인지 직접 확인해 주세요.<br>
+      AI 분석은 입력한 상품 정보와 사진만을 근거로 작성되었으며 실시간 시장 데이터를 조회하지 않았습니다. (모델: ${esc(ai.model || AI.MODEL)})</p>
     </div>`;
   }
 
@@ -1297,7 +1297,7 @@
       return `<div class="card empty-ai content-empty">
         <p><b>판매 콘텐츠 만들기</b></p>
         <p class="muted">위 분석 결과를 바탕으로 상품명 후보, 검색 키워드, 상세페이지 구성안, 홍보문구 초안을 만듭니다.<br>
-        분석 결과를 수정했다면 고친 내용이 반영됩니다. 먼저 분석 결과를 확인하고 필요한 부분을 고친 뒤 만드는 것을 권장합니다.</p>
+        만든 초안은 항목마다 <b>수정</b>·<b>복사</b> 버튼으로 고치거나 복사할 수 있습니다.</p>
         <button class="btn-primary" data-action="content">판매 콘텐츠 만들기</button>
       </div>`;
     }

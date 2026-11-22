@@ -452,7 +452,8 @@ td.best { font-weight: 700; color: var(--good); }
 .dp-prompt-en { margin-top: 6px; font-size: 14px; }
 .dp-prompt-en summary { cursor: pointer; color: var(--muted); }
 .dp-prompt-en p { margin: 4px 0; font-size: 14px; color: var(--muted); }
-.dp-shot-note { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+/* 이미지 생성 주의 안내: 잘 보이도록 크게, 노란 상자로 */
+.dp-shot-note { margin: 12px 0 0; font-size: 19px; line-height: 1.6; color: #78350f; background: var(--warn-weak); border: 1px solid #fcd34d; border-radius: 12px; padding: 12px 16px; }
 .dp-shot-now { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--accent-weak); font-size: 15px; }
 .dp-slot-rec { display: block; font-size: 14px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
 .dp-preview-wrap { overflow-x: auto; background: var(--subtle); border-radius: var(--radius); padding: 20px 0; }
