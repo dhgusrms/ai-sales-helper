@@ -525,16 +525,42 @@
   }
 
   /* ---------- 오른쪽 입력 요약 (넓은 화면) ---------- */
+  // 입력할 순서 (화면 위에서 아래 순서). [칸 이름, 요약에 보일 이름, 다음 단계 안내, 다 했는지]
+  function inputSteps(p) {
+    const custom = p.platform === 'custom';
+    return [
+      ['platform', '판매 플랫폼', '판매 플랫폼을 골라 주세요', !!p.platform],
+      ...(custom ? [['platformName', '판매처 이름', '판매처 이름을 적어 주세요', !!p.platformName]] : []),
+      ['name', '상품명', '상품명을 적어 주세요', !!p.name],
+      [custom ? 'catCustom' : 'catMain', '카테고리', custom ? '카테고리를 적어 주세요' : '카테고리를 골라 주세요', !!p.catMain],
+      ['description', '제품 설명', `제품 설명을 ${MIN_DESC}자 이상 적어 주세요`, p.description.length >= MIN_DESC],
+      ['cost', '상품 원가', '상품 원가를 넣어 주세요', p.costEntered],
+      ['price', '예상 판매가격', '예상 판매가격을 넣어 주세요', p.price > 0],
+      ...(custom ? [['feeRate', '수수료', '수수료를 넣어 주세요 (없으면 0)', p.feeEntered]] : []),
+    ];
+  }
+
   function renderSummary(p) {
     const plat = Platforms.platformText(p);
     $('#sumPath').innerHTML = p.catMain
       ? esc([plat, p.category].filter(Boolean).join(' > '))
-      : `<span class="muted">${plat ? `${esc(plat)} · ` : ''}카테고리를 골라 주세요</span>`;
+      : `<span class="muted">${plat ? `${esc(plat)} > (카테고리 고르기 전)` : '아직 고르지 않았어요'}</span>`;
 
     const estimated = p.platform !== 'custom' && Platforms.LIST[p.platform] && !Platforms.LIST[p.platform].verified;
     $('#sumFee').innerHTML = form.elements.feeRate.value.trim()
       ? `수수료 <b>${esc(p.feeRate)}%</b>${estimated ? ' <span class="sum-badge">확인 필요</span>' : ''}`
-      : '<span class="muted">수수료를 넣어 주세요</span>';
+      : `<span class="muted">${p.platform === 'custom' ? '수수료는 직접 넣어 주세요' : '수수료는 카테고리를 고르면 자동으로 들어가요'}</span>`;
+
+    // 다음에 할 일: 아직 안 한 첫 칸을 크게 보여 주고, 누르면 그 칸으로 이동
+    const steps = inputSteps(p);
+    const next = steps.find(s => !s[3]);
+    const no = next ? steps.indexOf(next) + 1 : 0;
+    const nb = $('#sumNext');
+    nb.dataset.focus = next ? next[0] : 'analyzeBtn';
+    nb.classList.toggle('is-done', !next);
+    nb.innerHTML = next
+      ? `<span class="sum-next-k">다음 단계 ${no}/${steps.length}</span><b>${esc(next[2])}</b><span class="sum-next-go">바로 가기 →</span>`
+      : `<span class="sum-next-k">준비 완료</span><b>'AI 분석 시작'을 눌러 주세요</b><span class="sum-next-go">버튼으로 가기 →</span>`;
 
     if (p.price > 0 && p.cost > 0) {
       const r = Profit.calc(p);
@@ -548,12 +574,18 @@
       $('#sumProfit').innerHTML = '<p class="muted small">원가와 판매가격을 넣으면 예상 순이익이 바로 계산됩니다.</p>';
     }
 
-    const checks = [
-      ['카테고리', !!p.catMain], ['상품명', !!p.name], ['제품 설명', !!p.description],
-      ['상품 원가', p.cost > 0], ['예상 판매가격', p.price > 0],
-    ];
-    $('#sumCheck').innerHTML = checks.map(([k, ok]) => `<li class="${ok ? 'ok' : ''}">${ok ? '✓' : '○'} ${k}</li>`).join('');
+    $('#sumCheck').innerHTML = steps.map(([field, label, , ok]) =>
+      `<li class="${ok ? 'ok' : field === next?.[0] ? 'is-next' : ''}"><button type="button" data-focus="${field}">${ok ? '✓' : field === next?.[0] ? '●' : '○'} ${label}</button></li>`).join('');
   }
+  // 요약의 '다음 단계'나 필수 항목을 누르면 그 칸으로 이동한다
+  $('.summary').addEventListener('click', e => {
+    const name = e.target.closest('[data-focus]')?.dataset.focus;
+    if (!name) return;
+    const el = name === 'analyzeBtn' ? $('#analyzeBtn') : form.elements[name];
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.focus({ preventScroll: true });
+  });
   form.addEventListener('change', liveCalc);
 
   /* ---------- 플랫폼별 카테고리 ---------- */

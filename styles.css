@@ -694,3 +694,16 @@ body.on-home { background: #fff; } /* 시작 화면은 흰 바탕 */
   .mock-score { grid-template-columns: 96px 1fr 32px; font-size: 14px; }
   .mock-bar em { padding: 3px 20px; }
 }
+
+/* 입력 요약: 다음에 할 일 */
+.sum-next { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; border: 0; border-radius: 14px; background: #111; color: #fff; padding: 14px 16px; margin: 4px 0 12px; }
+.sum-next:hover { background: #2a2a2a; }
+.sum-next-k { display: block; font-size: 15px; font-weight: 600; color: #a7f3c4; }
+.sum-next b { display: block; font-size: 20px; margin-top: 2px; }
+.sum-next-go { display: block; font-size: 15px; color: #d4d4d8; margin-top: 6px; }
+.sum-next.is-done { background: var(--good-weak); color: var(--good); }
+.sum-next.is-done .sum-next-k, .sum-next.is-done .sum-next-go { color: var(--good); }
+.sum-k small { font-size: 14px; }
+.sum-check button { all: unset; cursor: pointer; display: block; width: 100%; }
+.sum-check button:hover { text-decoration: underline; }
+.sum-check li.is-next { color: var(--text); font-weight: 700; }
