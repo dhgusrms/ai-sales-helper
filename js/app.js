@@ -16,8 +16,7 @@
   const won = n => `${Math.round(n).toLocaleString('ko-KR')}원`;
   const pct = n => `${n.toFixed(1)}%`;
   const date = ts => new Date(ts).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
-  // 저장된 분석 구분용: 날짜 + 시:분 (예: 2026. 11. 22. 14:35), 번호 (예: No.3)
-  const dateTime = ts => `${date(ts)} ${new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+  // 저장된 분석 구분용 번호 (예: No.3)
   const noOf = r => (r?.no ? `No.${r.no}` : '');
   const nameWithNo = r => (r.no ? `No.${r.no} ${r.product.name}` : r.product.name);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1012,7 +1011,7 @@
     const { product, profit, ai, aiError, scores, verdict } = current;
     destroyCharts();
     $('#resName').textContent = product.name;
-    $('#resCategory').textContent = `${current.no ? `${noOf(current)} · ` : ''}${Platforms.path(product) || '카테고리 없음'} · 분석 ${dateTime(current.savedAt)}`;
+    $('#resCategory').textContent = `${current.no ? `${noOf(current)} · ` : ''}${Platforms.path(product) || '카테고리 없음'} · 분석일 ${date(current.savedAt)}`;
 
     let html = current.saved === false
       ? '<p class="note small">저장 공간이 부족해 이 분석은 저장되지 않았습니다. 저장된 분석 중 필요 없는 항목을 삭제해 주세요.</p>' : '';
@@ -1769,7 +1768,7 @@
   $('#deleteSelectedBtn').addEventListener('click', () => {
     const ids = [...selected];
     if (!ids.length) return;
-    const names = Store.all().filter(r => selected.has(r.id)).map(r => `${nameWithNo(r)} (${dateTime(r.savedAt)})`);
+    const names = Store.all().filter(r => selected.has(r.id)).map(r => `${nameWithNo(r)} (${date(r.savedAt)})`);
     const preview = names.slice(0, 5).map(n => `· ${n}`).join('\n') + (names.length > 5 ? `\n외 ${names.length - 5}개` : '');
     if (!confirm(`선택한 분석 ${ids.length}개를 삭제할까요? 삭제하면 되돌릴 수 없습니다.\n\n${preview}`)) return;
     deleteRecords(ids);
@@ -1793,7 +1792,7 @@
       return;
     }
     $('#savedBody').innerHTML = `<div class="card"><div class="table-wrap"><table class="saved-table">
-      <thead><tr><th class="sel"><input type="checkbox" id="selectAll" aria-label="전체 선택"></th><th class="no">번호</th><th>상품</th><th>판정</th><th>종합 점수</th><th>마진율</th><th>순이익</th><th>분석 일시</th><th></th></tr></thead>
+      <thead><tr><th class="sel"><input type="checkbox" id="selectAll" aria-label="전체 선택"></th><th class="no">번호</th><th>상품</th><th>판정</th><th>종합 점수</th><th>마진율</th><th>순이익</th><th>분석일</th><th></th></tr></thead>
       <tbody>${list.map(r => `<tr class="${selected.has(r.id) ? 'is-selected' : ''}">
         <td class="sel"><input type="checkbox" data-select="${r.id}" ${selected.has(r.id) ? 'checked' : ''} aria-label="${esc(nameWithNo(r))} 선택"></td>
         <td class="no"><span class="no-badge">${noOf(r) || '-'}</span></td>
@@ -1803,7 +1802,7 @@
         <td>${r.verdict ? `${r.verdict.total}점` : '-'}</td>
         <td class="${r.profit.margin < 0 ? 'neg' : ''}">${pct(r.profit.margin)}</td>
         <td class="${r.profit.profit < 0 ? 'neg' : ''}">${won(r.profit.profit)}</td>
-        <td class="when">${date(r.savedAt)}<span>${new Date(r.savedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}</span></td>
+        <td>${date(r.savedAt)}</td>
         <td><button class="link-btn" data-open="${r.id}">보기</button><button class="link-btn danger" data-delete="${r.id}">삭제</button></td>
       </tr>`).join('')}</tbody>
     </table></div></div>
@@ -1834,7 +1833,7 @@
     if (open) { const r = Store.get(open); if (r) showRecord(r); }
     if (del) {
       const r = Store.get(del);
-      if (!r || !confirm(`'${nameWithNo(r)}' (${dateTime(r.savedAt)}) 분석 결과를 삭제할까요? 삭제하면 되돌릴 수 없습니다.`)) return;
+      if (!r || !confirm(`'${nameWithNo(r)}' (${date(r.savedAt)}) 분석 결과를 삭제할까요? 삭제하면 되돌릴 수 없습니다.`)) return;
       deleteRecords([del]);
     }
   });
@@ -1873,7 +1872,7 @@
       <div class="card">
         <h2>점수·수익 비교표</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>항목</th>${records.map(r => `<th>${r.no ? `<span class="no-badge">${noOf(r)}</span> ` : ''}${esc(r.product.name)}<div class="muted small">${esc(dateTime(r.savedAt))}</div></th>`).join('')}</tr></thead>
+          <thead><tr><th>항목</th>${records.map(r => `<th>${r.no ? `<span class="no-badge">${noOf(r)}</span> ` : ''}${esc(r.product.name)}<div class="muted small">${esc(date(r.savedAt))}</div></th>`).join('')}</tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
         <p class="disclaimer">초록색 굵은 글씨는 해당 항목에서 가장 좋은 값입니다. 점수는 각 상품의 입력 정보에 기반한 참고용 추정치로, 입력 정보의 양과 질이 다르면 직접 비교에 한계가 있습니다.</p>

@@ -328,7 +328,6 @@ mark.general { background: var(--accent-weak); color: var(--accent); font-size: 
 .saved-table td:nth-child(3) { white-space: normal; min-width: 160px; text-align: left; }
 .saved-table th:nth-child(3) { text-align: left; }
 .saved-table .no { width: 64px; text-align: center; }
-.saved-table .when span { display: block; font-size: 14px; color: var(--muted); }
 .no-badge { display: inline-block; padding: 2px 8px; border-radius: 99px; background: var(--accent-weak); color: var(--accent); font-size: 14px; font-weight: 700; white-space: nowrap; }
 .saved-table .sel { width: 36px; text-align: center; padding-right: 0; }
 .saved-table tr.is-selected td { background: var(--accent-weak); }
