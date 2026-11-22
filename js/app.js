@@ -54,9 +54,9 @@
 
   function readForm() {
     const f = new FormData(form);
-    const platform = f.get('platform') || 'custom';
-    const catMain = platform === 'custom' ? (f.get('catCustom') || '').trim() : (f.get('catMain') || '');
-    const catSub = platform === 'custom' ? '' : (f.get('catSub') || '');
+    const platform = f.get('platform') || '';
+    const catMain = platform ? (f.get('catMain') || '') : '';
+    const catSub = platform ? (f.get('catSub') || '') : '';
     return {
       name: (f.get('name') || '').trim(),
       catMain,
@@ -351,9 +351,8 @@
     if (!p.name) err('name', '상품명을 입력해 주세요.');
     else if (!LETTER_RE.test(p.name)) err('name', '상품명에 한글이나 영문을 넣어 주세요. 숫자·기호만으로는 안 돼요.');
 
-    const catField = p.platform === 'custom' ? 'catCustom' : 'catMain';
-    if (!p.catMain) err(catField, p.platform === 'custom' ? '카테고리를 입력해 주세요.' : '카테고리를 골라 주세요.');
-    else if (p.platform === 'custom' && (p.catMain.length < 2 || !LETTER_RE.test(p.catMain))) err('catCustom', '카테고리는 한글이나 영문으로 써 주세요. 예) 생활용품 > 욕실용품');
+    if (!p.platform) err('platform', '판매 플랫폼을 골라 주세요.');
+    else if (!p.catMain) err('catMain', '카테고리를 골라 주세요.');
 
     const d = p.description.replace(/\s+/g, '');
     if (!p.description) err('description', '제품 설명을 입력해 주세요.');
@@ -366,8 +365,7 @@
 
     if (!p.costEntered) err('cost', '원가를 입력해 주세요. 원가가 없으면 0을 입력해 주세요.');
     if (p.price < MIN_PRICE) err('price', `판매가는 ${MIN_PRICE.toLocaleString('ko-KR')}원 이상이어야 해요.`);
-    if (p.platform === 'custom' && !p.feeEntered) err('feeRate', '수수료를 입력해 주세요. 수수료가 없으면 0을 입력해 주세요.');
-    else if (p.feeRate >= 100) err('feeRate', '수수료는 100% 미만이어야 해요.');
+    if (p.feeRate >= 100) err('feeRate', '수수료는 100% 미만이어야 해요.');
 
     SIZE_SHAPES[p.sizeShape].forEach((label, i) => {
       const k = SIZE_KEYS[i];
@@ -402,7 +400,6 @@
       if (r.profit < 0) warnings.push(`이 가격이면 1개 팔 때마다 ${won(-r.profit)} 손해예요. 판매가와 비용을 확인해 주세요.`);
       if (p.shipping > p.price) warnings.push('배송비가 판매가보다 커요.');
       if (p.packaging > p.price) warnings.push('포장비가 판매가보다 커요.');
-      if (p.platform === 'custom' && p.feeRate === 0) warnings.push('수수료가 0%예요. 판매처 수수료가 정말 없나요?');
       const dc = currentDescCheck();
       if (dc?.verdict === 'partly') warnings.push(`제품 설명에 상품과 관련 없는 내용이 섞여 있어요${dc.offtopic.length ? ` (${dc.offtopic.map(s => `“${s}”`).join(', ')})` : ''}. 빼고 쓰면 분석이 더 정확해져요.`);
     }
@@ -516,15 +513,11 @@
   form.addEventListener('change', liveCalc);
 
   /* ---------- 플랫폼별 카테고리 ---------- */
-  // 대분류 목록을 지금 플랫폼에 맞게 채운다. 직접 입력이면 글자 입력칸을 보여 준다.
+  // 대분류 목록을 지금 플랫폼에 맞게 채운다. 플랫폼을 고르기 전에는 먼저 고르라고 안내한다.
   function fillMains(selected = '') {
     const id = form.elements.platform.value;
-    const custom = id === 'custom';
-    $('#catSelects').hidden = custom;
-    $('#catCustomField').hidden = !custom;
-    form.elements.catMain.required = !custom;
-    form.elements.catCustom.required = custom;
-    form.elements.catMain.innerHTML = '<option value="">선택해 주세요</option>'
+    form.elements.catMain.disabled = !id;
+    form.elements.catMain.innerHTML = `<option value="">${id ? '선택해 주세요' : '판매 플랫폼을 먼저 골라 주세요'}</option>`
       + Platforms.mains(id).map(m => `<option${m === selected ? ' selected' : ''}>${esc(m)}</option>`).join('');
     fillSubs();
   }
@@ -558,7 +551,7 @@
       liveCalc();
     }
     const note = $('#feeNote');
-    note.textContent = id === 'custom'
+    note.textContent = !id
       ? '판매 플랫폼과 카테고리를 고르면 수수료가 자동으로 들어갑니다. 직접 고칠 수도 있습니다.'
       : fee.note;
     note.classList.toggle('warn', !!fee.estimated);
@@ -573,16 +566,14 @@
   let lastPlatform = form.elements.platform.value;
   form.elements.platform.addEventListener('change', () => {
     const id = form.elements.platform.value;
-    const hadCategory = lastPlatform === 'custom' ? form.elements.catCustom.value.trim() : form.elements.catMain.value;
+    const hadCategory = lastPlatform && form.elements.catMain.value;
     lastPlatform = id;
-    form.elements.catCustom.value = '';
     fillMains();
-    if (id !== 'custom') form.elements.feeRate.value = ''; // 앞 플랫폼의 수수료가 남지 않도록
+    form.elements.feeRate.value = ''; // 앞 플랫폼의 수수료가 남지 않도록
     showCatNotice(hadCategory
-      ? (id === 'custom'
-        ? '판매 플랫폼을 직접 입력으로 바꿔 카테고리를 비웠습니다. 카테고리와 수수료를 직접 적어 주세요.'
-        : `판매 플랫폼이 ${Platforms.label(id)}(으)로 바뀌어 카테고리를 비웠습니다. 플랫폼마다 카테고리가 달라서 다시 골라 주세요.`)
+      ? `판매 플랫폼이 ${Platforms.label(id)}(으)로 바뀌어 카테고리를 비웠습니다. 플랫폼마다 카테고리가 달라서 다시 골라 주세요.`
       : '');
+    suggestCategory(); // 상품명을 먼저 썼다면 이 플랫폼의 대분류를 추천한다
     applyPlatformFee(true);
     liveCalc();
   });
@@ -613,7 +604,7 @@
   async function suggestCategory() {
     const id = form.elements.platform.value;
     const name = form.elements.name.value.trim();
-    if (id === 'custom' || !LETTER_RE.test(name)) { hideCatSuggest(); return; }
+    if (!id || !LETTER_RE.test(name)) { hideCatSuggest(); return; }
     const key = `${id}|${name}`;
     if (key === catKey) return;
     hideCatSuggest();

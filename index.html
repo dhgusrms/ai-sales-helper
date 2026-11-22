@@ -58,9 +58,9 @@
           <h2><span class="h-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></span>상품 기본 정보</h2>
 
           <label class="field">
-            <span class="label">판매 플랫폼 <small class="muted">(먼저 고르면 그 플랫폼의 카테고리와 수수료가 나옵니다)</small></span>
-            <select name="platform" id="platformSelect">
-              <option value="custom">직접 입력 (플랫폼 정하지 않음)</option>
+            <span class="label">판매 플랫폼 <b>*</b> <small class="muted">(먼저 고르면 그 플랫폼의 카테고리와 수수료가 나옵니다)</small></span>
+            <select name="platform" id="platformSelect" required>
+              <option value="" selected>판매 플랫폼을 골라 주세요</option>
               <option value="naver">네이버 스마트스토어</option>
               <option value="coupang">쿠팡 (마켓플레이스)</option>
               <option value="st11">11번가</option>
@@ -97,10 +97,6 @@
             </label>
           </div>
           <p class="cat-suggest" id="catSuggest" aria-live="polite" hidden></p>
-          <label class="field" id="catCustomField" hidden>
-            <span class="label">카테고리 <b>*</b> <small class="muted">(직접 입력)</small></span>
-            <input type="text" name="catCustom" placeholder="예) 생활용품 > 욕실용품" maxlength="80">
-          </label>
 
           <label class="field">
             <span class="label">제품 설명 <b>*</b></span>
