@@ -289,6 +289,31 @@
     renderKC();
     return pending;
   }
+  // 제품 설명이 이 상품에 대한 내용인지 AI가 판단한다. 상품명·카테고리·설명이 바뀌면 다시 판단한다.
+  // AI 판단이 실패하면 막지 않는다.
+  let descCheck = null; // { key, verdict: 'checking'|'ok'|'partly'|'unrelated', offtopic, reason, pending }
+  const descKey = () => { const p = readForm(); return [p.name, p.category, p.description].join('|'); };
+  const descBasicOk = p => p.name && p.description.length >= MIN_DESC && letterCount(p.description.replace(/\s+/g, '')) >= 10;
+  function currentDescCheck() {
+    return descCheck && descCheck.key === descKey() && descCheck.verdict !== 'checking' ? descCheck : null;
+  }
+  async function ensureDescCheck() {
+    const p = readForm();
+    if (!AI.isReady() || !descBasicOk(p)) return null;
+    const key = descKey();
+    if (descCheck?.key === key) return descCheck.verdict === 'checking' ? descCheck.pending : descCheck;
+    const pending = AI.checkDescription(p)
+      .then(r => r, () => null)
+      .then(r => {
+        if (descCheck?.key !== key) return null;
+        descCheck = r ? { key, ...r } : { key, verdict: 'ok', offtopic: [], reason: '', failed: true };
+        return descCheck;
+      });
+    descCheck = { key, verdict: 'checking', pending };
+    return pending;
+  }
+  // 설명을 다 쓰고 칸을 벗어나면 미리 판단해 둔다 (분석 버튼을 누를 때 기다리는 시간을 줄인다)
+  form.elements.description.addEventListener('blur', () => { ensureDescCheck(); });
   // 상품명을 다 쓰고 나오면, 이미 조회한 인증과 맞는지 다시 판단한다
   ['name', 'description'].forEach(n => form.elements[n].addEventListener('blur', () => { if (kcState.status === 'ok') ensureKcMatch(); }));
   $('#kcLookupBtn').addEventListener('click', lookupKC);
@@ -331,6 +356,10 @@
     if (!p.description) err('description', '제품 설명을 입력해 주세요.');
     else if (p.description.length < MIN_DESC || letterCount(d) < 10) err('description', `제품 설명을 ${MIN_DESC}자 이상, 무엇에 쓰는 상품인지 알 수 있게 써 주세요.`);
     else if (new Set(d).size < 5) err('description', '같은 글자 반복 말고 상품에 대한 설명을 써 주세요.');
+    else if (currentDescCheck()?.verdict === 'unrelated') {
+      const dc = currentDescCheck();
+      err('description', `상품에 대한 설명이 아닌 것 같아요.${dc.offtopic.length ? ` (${dc.offtopic.map(s => `“${s}”`).join(', ')})` : ''} 무엇에 쓰는 상품인지, 특징·재질·사용법 등을 써 주세요.`);
+    }
 
     if (!p.costEntered) err('cost', '원가를 입력해 주세요. 원가가 없으면 0을 입력해 주세요.');
     if (p.price < MIN_PRICE) err('price', `판매가는 ${MIN_PRICE.toLocaleString('ko-KR')}원 이상이어야 해요.`);
@@ -372,6 +401,8 @@
       if (p.shipping > p.price) warnings.push('배송비가 판매가보다 커요.');
       if (p.packaging > p.price) warnings.push('포장비가 판매가보다 커요.');
       if (p.platform === 'custom' && p.feeRate === 0) warnings.push('수수료가 0%예요. 판매처 수수료가 정말 없나요?');
+      const dc = currentDescCheck();
+      if (dc?.verdict === 'partly') warnings.push(`제품 설명에 상품과 관련 없는 내용이 섞여 있어요${dc.offtopic.length ? ` (${dc.offtopic.map(s => `“${s}”`).join(', ')})` : ''}. 빼고 쓰면 분석이 더 정확해져요.`);
     }
     return { errors, warnings };
   }
@@ -428,7 +459,11 @@
     box.innerHTML = `<b>분석 전에 확인해 주세요</b><ul>${list.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
       <div class="actions"><button type="button" class="btn-outline" id="warnFix">고칠게요</button>
       <button type="button" class="btn-primary" id="warnOk">맞아요, 분석할게요</button></div>`;
-    $('#warnFix').addEventListener('click', () => { box.hidden = true; form.elements.price.focus(); });
+    $('#warnFix').addEventListener('click', () => {
+      box.hidden = true;
+      const f = list.some(w => w.startsWith('제품 설명')) ? form.elements.description : form.elements.price;
+      f.focus(); f.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
     $('#warnOk').addEventListener('click', () => { confirmedWarnings = list.join('|'); box.hidden = true; form.requestSubmit(); });
     box.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
@@ -868,6 +903,15 @@
     if (kcState.status === 'ok' && !currentKcMatch()?.reason && form.elements.name.value.trim()) {
       $('#formError').textContent = 'KC 인증이 이 상품의 것인지 확인하고 있어요…';
       await ensureKcMatch();
+      $('#formError').textContent = '';
+    }
+    // 제품 설명이 이 상품에 대한 내용인지 AI 판단이 끝난 뒤에 검사한다
+    if (!currentDescCheck() && descBasicOk(readForm()) && AI.isReady()) {
+      $('#formError').textContent = '제품 설명이 상품에 대한 내용인지 확인하고 있어요…';
+      $$('[data-analyze]').forEach(b => { b.disabled = true; });
+      // 확인하는 동안 글을 고쳤으면 고친 글로 한 번 더 확인한다
+      if (!(await ensureDescCheck()) && descBasicOk(readForm())) await ensureDescCheck();
+      $$('[data-analyze]').forEach(b => { b.disabled = false; });
       $('#formError').textContent = '';
     }
     const product = readForm();

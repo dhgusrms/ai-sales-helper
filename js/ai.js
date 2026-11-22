@@ -976,6 +976,41 @@ ${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함�
     return { verdict, reason };
   }
 
+  // 제품 설명이 이 상품에 대한 설명인지 판단한다 (인사·날씨·자기소개 같은 관련 없는 글을 걸러 낸다)
+  const DESC_SYSTEM = `당신은 온라인 쇼핑몰 상품 등록을 돕는 도우미입니다.
+판매자가 쓴 '제품 설명'이 이 상품에 대한 설명인지 판단합니다.
+- 상품에 대한 내용: 무엇에 쓰는 상품인지, 특징·장점, 재질·크기·구성, 사용법, 대상 고객, 관리법, 판매 조건 등. 짧거나 서툴러도 상품 이야기면 상품에 대한 내용입니다.
+- 관련 없는 내용: 인사, 자기소개, 날씨·일상 이야기, 상품과 무관한 잡담, 의미 없는 글자 나열, 다른 상품 이야기 등.
+- verdict "ok": 설명 대부분이 이 상품에 대한 내용일 때. 끝인사 한마디 정도는 ok입니다.
+- verdict "partly": 상품에 대한 내용이 있지만, 관련 없는 문장도 섞여 있을 때.
+- verdict "unrelated": 이 상품에 대한 내용이 거의 없을 때(상품이 무엇인지 알 수 없을 때).
+- offtopic: 관련 없는 문장을 설명에 쓰인 그대로 최대 3개. ok면 빈 배열.
+- reason: 판단 이유를 한국어 한 문장으로, 존댓말로.`;
+  const DESC_SCHEMA = {
+    type: 'object',
+    properties: {
+      verdict: { type: 'string', enum: ['ok', 'partly', 'unrelated'] },
+      offtopic: { type: 'array', items: { type: 'string' }, maxItems: 3 },
+      reason: { type: 'string' },
+    },
+    required: ['verdict', 'offtopic', 'reason'], additionalProperties: false,
+  };
+  async function checkDescription(product, signal) {
+    const p = getProvider();
+    const request = p === 'qwen' ? requestQwen : p === 'cloud' ? requestCloud : requestClaude;
+    const text = `상품명: ${product.name}
+카테고리: ${product.category || '입력 안 함'}
+제품 설명:
+${String(product.description || '').slice(0, 1500)}
+
+이 제품 설명이 이 상품에 대한 설명인지 판단해 주세요.`;
+    const { parsed } = await request(DESC_SYSTEM, text, DESC_SCHEMA, signal);
+    const verdict = ['ok', 'partly', 'unrelated'].includes(parsed?.verdict) ? parsed.verdict : 'ok';
+    const clean = s => (typeof s === 'string' ? s.replace(/\s+/g, ' ').trim() : '');
+    const offtopic = (Array.isArray(parsed?.offtopic) ? parsed.offtopic : []).map(clean).filter(Boolean).slice(0, 3);
+    return { verdict, offtopic, reason: clean(parsed?.reason) };
+  }
+
   const CAT_SYSTEM = `당신은 온라인 쇼핑몰의 상품 카테고리 분류 도우미입니다.
 상품명을 보고, 주어진 대분류 목록 중 이 상품을 등록하기에 가장 알맞은 대분류 하나를 고릅니다.
 - category에는 목록에 있는 이름을 글자 그대로 씁니다. 목록에 없는 이름을 만들지 마세요.
@@ -1045,5 +1080,5 @@ ${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함�
   // 사용자가 '취소하고 돌아가기'를 누른 경우
   const cancelled = () => new AIError('cancelled', '분석을 취소했습니다.');
 
-  return { analyze, generateContent, generateDetailPage, suggestPhotos, lookupKC, checkKcMatch, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
+  return { analyze, generateContent, generateDetailPage, suggestPhotos, lookupKC, checkKcMatch, checkDescription, proofread, suggestCategory, riskyWordNotices, getKey, setKey, isRemembered, getProvider, getQwenModel, setProvider, isReady, label, hasCloud, MODEL, QWEN_DEFAULT };
 })();
