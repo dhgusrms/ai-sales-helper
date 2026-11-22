@@ -601,6 +601,11 @@
     liveCalc();
   });
   form.elements.catMain.addEventListener('change', () => { fillSubs(); showCatNotice(''); applyPlatformFee(true); showCatSuggest(); });
+  // 수수료 칸을 다 지우고 나가면 지금 고른 플랫폼·카테고리의 수수료를 다시 넣는다 (직접 입력 판매처는 제외)
+  form.elements.feeRate.addEventListener('blur', () => {
+    if (form.elements.feeRate.value.trim() || form.elements.platform.value === 'custom') return;
+    applyPlatformFee(true);
+  });
 
   /* ---------- 상품명으로 대분류 추천 ---------- */
   // 상품명을 쓰고 다음 칸으로 넘어가면 AI가 그 판매처의 대분류 중 하나를 추천한다. 고른 값은 덮어쓰지 않는다.
