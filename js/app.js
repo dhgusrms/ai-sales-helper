@@ -657,8 +657,8 @@
   fillMains();
 
   form.addEventListener('input', liveCalc);
-  // 목표 마진율 목록: 1% ~ 90%, 1% 단위 (기본 30%)
-  form.elements.targetMargin.innerHTML = Array.from({ length: 90 }, (_, i) => i + 1)
+  // 목표 마진율 목록: 5% ~ 90%, 5% 단위 (기본 30%)
+  form.elements.targetMargin.innerHTML = Array.from({ length: 18 }, (_, i) => (i + 1) * 5)
     .map(v => `<option value="${v}"${v === 30 ? ' selected' : ''}>${v}%</option>`).join('');
   form.elements.targetMargin.addEventListener('change', liveCalc);
 
