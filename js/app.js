@@ -28,7 +28,8 @@
 
   /* ---------- 화면 전환 ---------- */
   function go(view) {
-    for (const v of ['input', 'result', 'saved', 'compare', 'detail']) $(`#view-${v}`).hidden = v !== view;
+    for (const v of ['home', 'input', 'result', 'saved', 'compare', 'detail']) $(`#view-${v}`).hidden = v !== view;
+    document.body.classList.toggle('on-home', view === 'home'); // 시작 화면에서는 단계 대신 '무료로 시작하기' 버튼
     const step = { compare: 'saved', detail: 'result' }[view] || view;
     $$('.step').forEach(b => b.classList.toggle('is-active', b.dataset.go === step));
     if (view === 'saved') renderSaved();

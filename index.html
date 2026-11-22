@@ -10,21 +10,136 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
-<body>
+<body class="on-home">
   <header class="topbar">
     <div class="wrap topbar-inner">
-      <a class="brand" href="#" data-go="input"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5l-2.2-6.3L3.5 10l6.3-1.7z"/><circle cx="19" cy="19" r="2.2"/></svg></span>AI 온라인 판매 도우미</a>
+      <a class="brand" href="#" data-go="home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5l-2.2-6.3L3.5 10l6.3-1.7z"/><circle cx="19" cy="19" r="2.2"/></svg></span>AI 온라인 판매 도우미</a>
       <nav class="steps" aria-label="진행 단계">
         <button class="step is-active" data-go="input"><span>1</span>상품 입력</button>
         <button class="step" data-go="result" disabled><span>2</span>분석 결과</button>
         <button class="step" data-go="saved"><span>3</span>저장된 분석</button>
       </nav>
+      <button class="btn-cta btn-cta-sm" id="topStart" data-go="input">무료로 시작하기</button>
     </div>
   </header>
 
   <main class="wrap">
+    <!-- 0. 시작 화면 -->
+    <section id="view-home" class="view home">
+      <div class="home-hero">
+        <span class="home-pill"><b>무료</b> 회원가입 없이 바로 쓰는 판매 준비 도구</span>
+        <p class="home-kicker">팔기 전에 계산하고, 팔리게 만드는 것까지.</p>
+        <h1 class="home-title">수익 계산부터 상세페이지까지<br>한 번에 끝.</h1>
+        <p class="home-sub">상품 정보만 넣으면 AI가 판매 가능성을 분석하고,<br class="br-wide"> 예상 마진과 상세페이지 초안을 만들어 드려요.</p>
+        <button class="btn-cta" data-go="input">무료로 시작하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <p class="home-note">분석 기록은 이 브라우저에만 저장돼요</p>
+      </div>
+
+      <!-- 예시 화면 (실제 데이터가 아닌 모양 예시) -->
+      <div class="home-demo-band">
+        <p class="home-demo-label"><i></i>이런 결과를 받아 볼 수 있어요 <span>· 예시 화면</span></p>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><span></span><span></span><span></span><em>AI 온라인 판매 도우미</em></div>
+          <div class="mock-body">
+            <div class="mock-head">
+              <div><small>네이버 스마트스토어 &gt; 생활/건강</small><b>무선 미니 가습기</b></div>
+              <span class="mock-verdict">판매 추천</span>
+            </div>
+            <div class="mock-kpis">
+              <div><small>판매가</small><b>29,900원</b></div>
+              <div><small>플랫폼 수수료</small><b>6.63%</b></div>
+              <div><small>예상 순이익</small><b class="pos">9,418원</b></div>
+              <div><small>마진율</small><b class="pos">31.5%</b></div>
+            </div>
+            <div class="mock-rows">
+              <div class="mock-score"><span>시장성</span><i style="--w:82%"></i><b>82</b></div>
+              <div class="mock-score"><span>경쟁력</span><i style="--w:74%"></i><b>74</b></div>
+              <div class="mock-score"><span>차별화 가능성</span><i style="--w:68%"></i><b>68</b></div>
+              <div class="mock-score"><span>판매 위험도</span><i class="risk" style="--w:35%"></i><b>35</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="home-sec">
+        <p class="home-eyebrow">이렇게 진행돼요</p>
+        <h2 class="home-h2">3단계면 판매 준비 끝.</h2>
+        <ol class="home-steps">
+          <li><span>01</span><h3>상품 정보 입력</h3><p>판매 플랫폼과 카테고리를 고르면 수수료가 자동으로 들어가요. 원가와 판매가만 넣으면 바로 계산돼요.</p></li>
+          <li><span>02</span><h3>AI 분석</h3><p>판매 가능성 점수, 예상 순이익과 권장 판매가, 오타와 KC 인증까지 한 번에 확인해요.</p></li>
+          <li><span>03</span><h3>상세페이지 만들기</h3><p>AI가 짠 구성에 사진과 색을 넣고, 글자를 눌러 고친 뒤 이미지로 내려받아요.</p></li>
+        </ol>
+      </div>
+
+      <div class="home-sec home-feature">
+        <div class="home-feature-text">
+          <p class="home-eyebrow">기능 01 · 계산하기</p>
+          <h2 class="home-h2">팔면 얼마 남는지<br>먼저 알려 드려요.</h2>
+          <ul class="home-checks">
+            <li>네이버·쿠팡·G마켓·옥션 공식 수수료 자동 적용</li>
+            <li>목표 마진율에 맞춘 권장 판매가</li>
+            <li>배송비·포장비까지 넣은 실제 순이익</li>
+          </ul>
+        </div>
+        <div class="home-card" aria-hidden="true">
+          <div class="hc-row"><span>판매가</span><b>29,900원</b></div>
+          <div class="hc-row"><span>원가</span><b>− 12,000원</b></div>
+          <div class="hc-row"><span>수수료 6.63%</span><b>− 1,982원</b></div>
+          <div class="hc-row"><span>배송·포장</span><b>− 6,500원</b></div>
+          <div class="hc-row hc-total"><span>예상 순이익</span><b>9,418원</b></div>
+        </div>
+      </div>
+
+      <div class="home-sec home-feature is-flip">
+        <div class="home-feature-text">
+          <p class="home-eyebrow">기능 02 · 분석하기</p>
+          <h2 class="home-h2">AI가 상품을<br>꼼꼼히 살펴봐요.</h2>
+          <ul class="home-checks">
+            <li>시장성·경쟁력·차별화·위험도 점수와 이유</li>
+            <li>상품명·설명 오타 검사</li>
+            <li>KC 인증 번호와 상품이 맞는지 확인</li>
+          </ul>
+        </div>
+        <div class="home-card" aria-hidden="true">
+          <p class="hc-title">오타 검사</p>
+          <div class="hc-typo"><del>무선 미니 가습깅</del> → <ins>무선 미니 가습기</ins></div>
+          <p class="hc-title">KC 인증</p>
+          <div class="hc-ok">✓ 입력한 상품과 인증 정보가 맞아요</div>
+        </div>
+      </div>
+
+      <div class="home-sec home-feature">
+        <div class="home-feature-text">
+          <p class="home-eyebrow">기능 03 · 만들기</p>
+          <h2 class="home-h2">상세페이지 초안을<br>바로 만들어요.</h2>
+          <ul class="home-checks">
+            <li>팔리는 순서로 짠 AI 구성과 문구</li>
+            <li>AI 사진 제작 프롬프트 추천</li>
+            <li>색 고르고 글자 고쳐서 이미지로 내려받기</li>
+          </ul>
+        </div>
+        <div class="home-card hc-page" aria-hidden="true">
+          <div class="hc-page-hero"><small>NEW</small><b>책상 위 작은 촉촉함</b><span>무선 미니 가습기</span></div>
+          <div class="hc-page-line"></div><div class="hc-page-line short"></div>
+          <div class="hc-page-grid"><i></i><i></i><i></i></div>
+        </div>
+      </div>
+
+      <div class="home-sec home-platforms">
+        <p class="home-eyebrow">지원 플랫폼</p>
+        <ul><li>네이버 스마트스토어</li><li>쿠팡</li><li>G마켓</li><li>옥션</li><li>직접 입력</li></ul>
+        <p class="home-note">수수료는 각 플랫폼의 공식 자료를 기준으로 넣었어요.</p>
+      </div>
+
+      <div class="home-final">
+        <h2>첫 상품, 지금 분석해 보세요.</h2>
+        <p>회원가입도, 결제도 필요 없어요.</p>
+        <button class="btn-cta is-light" data-go="input">무료로 시작하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+    </section>
+
     <!-- 1. 상품 입력 -->
-    <section id="view-input" class="view">
+    <section id="view-input" class="view" hidden>
       <div class="hero">
         <div class="hero-text">
           <span class="hero-badge">예비창업자를 위한 AI 판매 도우미</span>
