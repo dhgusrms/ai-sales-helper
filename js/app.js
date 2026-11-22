@@ -27,9 +27,11 @@
   const VERDICT_CLASS = { good: 'v-good', warn: 'v-warn', bad: 'v-bad' };
 
   /* ---------- 화면 전환 ---------- */
-  // 화면을 바꿀 때마다 브라우저 기록에 남겨 '뒤로 가기'로 앞 화면에 돌아갈 수 있게 한다
+  // 화면을 바꿀 때마다 브라우저 기록에 남겨 '뒤로 가기'로 앞 화면에 돌아갈 수 있게 한다.
+  // 결과·상세페이지는 어떤 분석인지(id)도 남겨, 새로고침하거나 뒤로 가도 같은 분석을 다시 연다.
   function go(view, fromHistory = false) {
-    if (!fromHistory && history.state?.view !== view) history.pushState({ view }, '');
+    const id = view === 'result' || view === 'detail' ? current?.id : undefined;
+    if (!fromHistory && (history.state?.view !== view || history.state?.id !== id)) history.pushState({ view, id }, '');
     for (const v of ['home', 'input', 'result', 'saved', 'compare', 'detail']) $(`#view-${v}`).hidden = v !== view;
     document.body.classList.toggle('on-home', view === 'home'); // 시작 화면에서는 단계 대신 '무료로 시작하기' 버튼
     const step = { compare: 'saved', detail: 'result' }[view] || view;
@@ -37,12 +39,24 @@
     if (view === 'saved') renderSaved();
     window.scrollTo(0, 0);
   }
-  history.replaceState({ view: 'home' }, '');
-  window.addEventListener('popstate', e => {
-    let view = e.state?.view || 'home';
-    if ((view === 'result' || view === 'detail') && !current) view = 'input'; // 보던 분석이 지워졌으면 입력 화면으로
+  // 기록에 남은 화면으로 돌아간다 (뒤로 가기·앞으로 가기·새로고침)
+  function restoreView(state) {
+    let view = state?.view || 'home';
+    if (view === 'result' || view === 'detail') {
+      const rec = state.id ? Store.get(state.id) : null;
+      if (!rec) view = 'input'; // 보던 분석이 지워졌으면 입력 화면으로
+      else {
+        if (current?.id !== rec.id) current = rec;
+        $('.step[data-go="result"]').disabled = false;
+        if (view === 'detail' && rec.ai?.content && DetailPage.isCurrent(rec.ai.detailPage)) {
+          preparePhotos(rec); renderDetailPanel(); renderShots(); renderDetailPreview();
+        } else { view = 'result'; renderResult(); }
+      }
+    }
+    if (view === 'compare') view = 'saved'; // 비교 화면은 고른 상품 목록이 없으니 저장 목록으로
     go(view, true);
-  });
+  }
+  window.addEventListener('popstate', e => restoreView(e.state));
   document.addEventListener('click', e => {
     const t = e.target.closest('[data-go]');
     if (!t || t.disabled) return;
@@ -2010,4 +2024,7 @@
   applyPlatformFee(false);
   liveCalc();
   updateSettingsButton();
+  // 새로고침하면 보던 화면에서 다시 시작한다 (입력하던 내용은 지워진다). 처음 들어오면 시작 화면.
+  if (history.state?.view) restoreView(history.state);
+  else history.replaceState({ view: 'home' }, '');
 })();
