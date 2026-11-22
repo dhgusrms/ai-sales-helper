@@ -26,6 +26,13 @@
   };
   const VERDICT_CLASS = { good: 'v-good', warn: 'v-warn', bad: 'v-bad' };
 
+  // 긴 안내·기준 설명은 접어 두고 눌러서 펼친다 (PDF·인쇄에서는 모두 펼친다)
+  const more = (title, html) => `<details class="more"><summary>${title}</summary><p class="disclaimer">${html}</p></details>`;
+  const openAllMore = () => document.querySelectorAll('details.more:not([open])').forEach(d => { d.open = true; d.dataset.autoOpen = '1'; });
+  const closeAutoMore = () => document.querySelectorAll('details.more[data-auto-open]').forEach(d => { d.open = false; delete d.dataset.autoOpen; });
+  window.addEventListener('beforeprint', openAllMore);
+  window.addEventListener('afterprint', closeAutoMore);
+
   /* ---------- 화면 전환 ---------- */
   // 화면을 바꿀 때마다 브라우저 기록에 남겨 '뒤로 가기'로 앞 화면에 돌아갈 수 있게 한다.
   // 결과·상세페이지는 어떤 분석인지(id)도 남겨, 새로고침하거나 뒤로 가도 같은 분석을 다시 연다.
@@ -1168,8 +1175,8 @@
           <ul>${v.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
         </div>
       </div>
-      <p class="disclaimer">점수와 의견은 입력된 정보만을 바탕으로 한 <b>참고용 추정치</b>입니다. 실시간 시장 데이터는 반영되지 않았으므로 최종 결정 전 직접 확인해 주세요.<br>
-      판정 기준: 순이익 0원 이하 또는 종합 50점 미만·위험도 75점 이상 → 판매 비추천 / 종합 70점 이상·위험도 60점 미만·마진율 15% 이상 → 판매 추천 / 그 외 → 추가 검토</p>
+      ${more('판정 기준과 참고 사항', `점수와 의견은 입력된 정보만을 바탕으로 한 <b>참고용 추정치</b>입니다. 실시간 시장 데이터는 반영되지 않았으므로 최종 결정 전 직접 확인해 주세요.<br>
+      판정 기준: 순이익 0원 이하 또는 종합 50점 미만·위험도 75점 이상 → 판매 비추천 / 종합 70점 이상·위험도 60점 미만·마진율 15% 이상 → 판매 추천 / 그 외 → 추가 검토`)}
     </div>`;
   }
 
@@ -1238,7 +1245,7 @@
         </tbody>
       </table></div>
       <div class="chart-box" style="margin-top:16px"><canvas id="priceChart" aria-label="판매가격별 순이익 차트"></canvas></div>
-      <p class="disclaimer">수익성 점수 ${profitScore}점: 마진율 0% = 20점, 40% 이상 = 100점으로 환산한 값입니다. 광고비, 반품·교환 비용, 부가세 등은 포함되지 않았습니다.</p>
+      ${more('수익성 점수 계산 방법', `수익성 점수 ${profitScore}점: 마진율 0% = 20점, 40% 이상 = 100점으로 환산한 값입니다. 광고비, 반품·교환 비용, 부가세 등은 포함되지 않았습니다.`)}
     </div>`;
   }
 
@@ -1339,9 +1346,9 @@
           <div class="sub"><span class="pill">개선</span>${ed(`risks.${i}.improvement`, r.improvement)}</div></li>`).join('')}</ul>`)}
       ${ai.missing_info?.length ? box('더 정확한 분석을 위해 필요한 정보', list(ai.missing_info, 'missing_info')) : ''}
       </div>
-      <p class="disclaimer"><mark class="general">일반 정보</mark> 표시는 입력한 정보가 아니라 이 상품군에 대해 AI가 알고 있는 일반적인 내용입니다. 이 상품에 그대로 해당하는지는 직접 판단해 주세요.<br>
+      ${more('‘일반 정보’·‘확인 필요’ 표시와 분석 근거', `<mark class="general">일반 정보</mark> 표시는 입력한 정보가 아니라 이 상품군에 대해 AI가 알고 있는 일반적인 내용입니다. 이 상품에 그대로 해당하는지는 직접 판단해 주세요.<br>
       <mark class="verify">확인 필요</mark> 표시는 이 상품에 대한 내용이지만 입력한 자료로 확인되지 않은 것입니다. 판매 전에 사실인지 직접 확인해 주세요.<br>
-      AI 분석은 입력한 상품 정보와 사진만을 근거로 작성되었으며 실시간 시장 데이터를 조회하지 않았습니다. (모델: ${esc(ai.model || AI.MODEL)})</p>
+      AI 분석은 입력한 상품 정보와 사진만을 근거로 작성되었으며 실시간 시장 데이터를 조회하지 않았습니다. (모델: ${esc(ai.model || AI.MODEL)})`)}
     </div>`;
   }
 
@@ -2028,6 +2035,7 @@
     btn.disabled = true;
     btn.textContent = 'PDF 만드는 중...';
     document.body.classList.add('pdf-mode');
+    openAllMore();
     // PDF 폭에 맞춰 차트 크기를 바로 다시 잡는다. (크기가 0인 차트가 있으면 PDF 도구가 멈춘다)
     const fitCharts = () => charts.forEach(c => { try { c.resize(); } catch { /* 무시 */ } });
     fitCharts();
@@ -2052,6 +2060,7 @@
       window.print();
     } finally {
       document.body.classList.remove('pdf-mode');
+      closeAutoMore();
       breakCards.forEach(c => c.classList.remove('pdf-break'));
       fitCharts();
       btn.disabled = false;
