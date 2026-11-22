@@ -231,7 +231,7 @@ ${product.description}
 - 판매가: ${won(product.price)}
 - 배송비(판매자 부담): ${won(product.shipping)}
 - 포장비: ${won(product.packaging)}
-- 판매 플랫폼: ${product.platform && product.platform !== 'custom' ? Platforms.label(product.platform) : '지정 안 함'}
+- 판매 플랫폼: ${product.platform === 'custom' ? (product.platformName ? `${product.platformName} (판매자가 직접 입력)` : '지정 안 함') : product.platform ? Platforms.label(product.platform) : '지정 안 함'}
 - 플랫폼 수수료율: ${product.feeRate}%
 - 계산된 순이익: ${won(profit.profit)} (마진율 ${profit.margin.toFixed(1)}%)
 

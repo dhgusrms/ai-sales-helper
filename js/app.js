@@ -55,9 +55,11 @@
   function readForm() {
     const f = new FormData(form);
     const platform = f.get('platform') || '';
-    const catMain = platform ? (f.get('catMain') || '') : '';
-    const catSub = platform ? (f.get('catSub') || '') : '';
+    const custom = platform === 'custom';
+    const catMain = custom ? (f.get('catCustom') || '').trim() : platform ? (f.get('catMain') || '') : '';
+    const catSub = platform && !custom ? (f.get('catSub') || '') : '';
     return {
+      platformName: custom ? (f.get('platformName') || '').trim() : '',
       name: (f.get('name') || '').trim(),
       catMain,
       catSub,
@@ -352,7 +354,12 @@
     else if (!LETTER_RE.test(p.name)) err('name', '상품명에 한글이나 영문을 넣어 주세요. 숫자·기호만으로는 안 돼요.');
 
     if (!p.platform) err('platform', '판매 플랫폼을 골라 주세요.');
-    else if (!p.catMain) err('catMain', '카테고리를 골라 주세요.');
+    else if (p.platform === 'custom') {
+      if (!p.platformName) err('platformName', '판매처 이름을 입력해 주세요. 예) 자사몰');
+      else if (!/[가-힣A-Za-z0-9]/.test(p.platformName)) err('platformName', '판매처 이름을 글자로 써 주세요. 예) 자사몰');
+      if (!p.catMain) err('catCustom', '카테고리를 입력해 주세요.');
+      else if (p.catMain.length < 2 || !LETTER_RE.test(p.catMain)) err('catCustom', '카테고리는 한글이나 영문으로 써 주세요. 예) 생활용품 > 욕실용품');
+    } else if (!p.catMain) err('catMain', '카테고리를 골라 주세요.');
 
     const d = p.description.replace(/\s+/g, '');
     if (!p.description) err('description', '제품 설명을 입력해 주세요.');
@@ -365,7 +372,8 @@
 
     if (!p.costEntered) err('cost', '원가를 입력해 주세요. 원가가 없으면 0을 입력해 주세요.');
     if (p.price < MIN_PRICE) err('price', `판매가는 ${MIN_PRICE.toLocaleString('ko-KR')}원 이상이어야 해요.`);
-    if (p.feeRate >= 100) err('feeRate', '수수료는 100% 미만이어야 해요.');
+    if (p.platform === 'custom' && !p.feeEntered) err('feeRate', '수수료를 입력해 주세요. 수수료가 없으면 0을 입력해 주세요.');
+    else if (p.feeRate >= 100) err('feeRate', '수수료는 100% 미만이어야 해요.');
 
     SIZE_SHAPES[p.sizeShape].forEach((label, i) => {
       const k = SIZE_KEYS[i];
@@ -400,6 +408,7 @@
       if (r.profit < 0) warnings.push(`이 가격이면 1개 팔 때마다 ${won(-r.profit)} 손해예요. 판매가와 비용을 확인해 주세요.`);
       if (p.shipping > p.price) warnings.push('배송비가 판매가보다 커요.');
       if (p.packaging > p.price) warnings.push('포장비가 판매가보다 커요.');
+      if (p.platform === 'custom' && p.feeRate === 0) warnings.push('수수료가 0%예요. 판매처 수수료가 정말 없나요?');
       const dc = currentDescCheck();
       if (dc?.verdict === 'partly') warnings.push(`제품 설명에 상품과 관련 없는 내용이 섞여 있어요${dc.offtopic.length ? ` (${dc.offtopic.map(s => `“${s}”`).join(', ')})` : ''}. 빼고 쓰면 분석이 더 정확해져요.`);
     }
@@ -482,7 +491,7 @@
 
   /* ---------- 오른쪽 입력 요약 (넓은 화면) ---------- */
   function renderSummary(p) {
-    const plat = p.platform !== 'custom' ? Platforms.shortLabel(p.platform) : '';
+    const plat = Platforms.platformText(p);
     $('#sumPath').innerHTML = p.catMain
       ? esc([plat, p.category].filter(Boolean).join(' > '))
       : `<span class="muted">${plat ? `${esc(plat)} · ` : ''}카테고리를 골라 주세요</span>`;
@@ -514,9 +523,14 @@
 
   /* ---------- 플랫폼별 카테고리 ---------- */
   // 대분류 목록을 지금 플랫폼에 맞게 채운다. 플랫폼을 고르기 전에는 먼저 고르라고 안내한다.
+  // 직접 입력이면 판매처 이름·카테고리를 글자로 쓰는 칸을 보여 준다.
   function fillMains(selected = '') {
     const id = form.elements.platform.value;
-    form.elements.catMain.disabled = !id;
+    const custom = id === 'custom';
+    $('#platformNameField').hidden = !custom;
+    $('#catSelects').hidden = custom;
+    $('#catCustomField').hidden = !custom;
+    form.elements.catMain.disabled = !id || custom;
     form.elements.catMain.innerHTML = `<option value="">${id ? '선택해 주세요' : '판매 플랫폼을 먼저 골라 주세요'}</option>`
       + Platforms.mains(id).map(m => `<option${m === selected ? ' selected' : ''}>${esc(m)}</option>`).join('');
     fillSubs();
@@ -553,7 +567,7 @@
     const note = $('#feeNote');
     note.textContent = !id
       ? '판매 플랫폼과 카테고리를 고르면 수수료가 자동으로 들어갑니다. 직접 고칠 수도 있습니다.'
-      : fee.note;
+      : id === 'custom' ? '직접 입력한 판매처는 수수료를 직접 넣어 주세요. 수수료가 없으면 0을 넣어 주세요.' : fee.note;
     note.classList.toggle('warn', !!fee.estimated);
   }
 
@@ -566,13 +580,17 @@
   let lastPlatform = form.elements.platform.value;
   form.elements.platform.addEventListener('change', () => {
     const id = form.elements.platform.value;
-    const hadCategory = lastPlatform && form.elements.catMain.value;
+    const hadCategory = lastPlatform === 'custom' ? form.elements.catCustom.value.trim() : lastPlatform && form.elements.catMain.value;
     lastPlatform = id;
+    form.elements.catCustom.value = '';
     fillMains();
     form.elements.feeRate.value = ''; // 앞 플랫폼의 수수료가 남지 않도록
     showCatNotice(hadCategory
-      ? `판매 플랫폼이 ${Platforms.label(id)}(으)로 바뀌어 카테고리를 비웠습니다. 플랫폼마다 카테고리가 달라서 다시 골라 주세요.`
+      ? (id === 'custom'
+        ? '판매 플랫폼을 직접 입력으로 바꿔 카테고리를 비웠습니다. 판매처 이름, 카테고리, 수수료를 직접 적어 주세요.'
+        : `판매 플랫폼이 ${Platforms.label(id)}(으)로 바뀌어 카테고리를 비웠습니다. 플랫폼마다 카테고리가 달라서 다시 골라 주세요.`)
       : '');
+    if (id === 'custom') form.elements.platformName.focus();
     suggestCategory(); // 상품명을 먼저 썼다면 이 플랫폼의 대분류를 추천한다
     applyPlatformFee(true);
     liveCalc();
@@ -604,7 +622,7 @@
   async function suggestCategory() {
     const id = form.elements.platform.value;
     const name = form.elements.name.value.trim();
-    if (!id || !LETTER_RE.test(name)) { hideCatSuggest(); return; }
+    if (!id || id === 'custom' || !LETTER_RE.test(name)) { hideCatSuggest(); return; }
     const key = `${id}|${name}`;
     if (key === catKey) return;
     hideCatSuggest();
@@ -972,7 +990,7 @@
         components: product.components, certification: product.certification,
         certType: product.certType, certNo: product.certNo, certName: product.certName, certVerified: product.certVerified, certLookup: product.certLookup,
         cost: product.cost, price: product.price, shipping: product.shipping, packaging: product.packaging,
-        feeRate: product.feeRate, platform: product.platform, targetMargin: product.targetMargin,
+        feeRate: product.feeRate, platform: product.platform, platformName: product.platformName, targetMargin: product.targetMargin,
         competitors: product.competitors,
         docNames: product.docs.map(d => d.name),
         thumb: photos[0] ? (await shrink(photos[0].url, 160)).url : null,
@@ -1112,7 +1130,7 @@
               <tr><td>상품 원가</td><td>− ${won(p.cost)}</td></tr>
               <tr><td>배송비</td><td>− ${won(p.shipping)}</td></tr>
               <tr><td>포장비</td><td>− ${won(p.packaging)}</td></tr>
-              <tr><td>플랫폼 수수료 (${p.platform && p.platform !== 'custom' ? `${esc(Platforms.shortLabel(p.platform, !p.catMain))} · ` : ''}${p.feeRate}%)</td><td>− ${won(r.fee)}</td></tr>
+              <tr><td>플랫폼 수수료 (${Platforms.platformText(p, !p.catMain) ? `${esc(Platforms.platformText(p, !p.catMain))} · ` : ''}${p.feeRate}%)</td><td>− ${won(r.fee)}</td></tr>
               <tr class="current"><td>순이익</td><td>${won(r.profit)}</td></tr>
             </tbody>
           </table></div>

@@ -246,7 +246,7 @@ const Platforms = (() => {
 
   const SERVER_FEE = '월 판매액이 일정 금액을 넘으면 서버 이용료가 따로 붙습니다';
   const LIST = {
-    custom: { label: '직접 입력' },
+    custom: { label: '직접 입력' }, // 판매처 이름은 product.platformName
     naver: {
       label: '네이버 스마트스토어', short: '네이버 스마트스토어',
       flat: 6.63, verified: false, cats: NAVER_CATS.map(n => [n, 6.63, []]),
@@ -320,16 +320,23 @@ const Platforms = (() => {
     return LIST[id]?.short || '';
   }
 
+  // 화면에 보일 판매처 이름. 직접 입력이면 사용자가 쓴 이름(예: 자사몰), 없으면 ''.
+  function platformText(product, legacy) {
+    if (!product?.platform) return '';
+    if (product.platform === 'custom') return String(product.platformName || '').trim();
+    return shortLabel(product.platform, legacy);
+  }
+
   // 카테고리 문자열: '생활용품 > 청소/세탁/욕실용품'
   function categoryText(main, sub) { return sub ? `${main} > ${sub}` : main || ''; }
 
   // 저장된 상품의 '플랫폼 > 카테고리' 경로. 예전 기록(catMain 없음)은 '(이전 카테고리)'를 붙인다.
   function path(product) {
     const legacy = !product.catMain;
-    const plat = product.platform && product.platform !== 'custom' ? shortLabel(product.platform, legacy) : '';
+    const plat = platformText(product, legacy);
     const cat = product.category ? `${product.category}${legacy ? ' (이전 카테고리)' : ''}` : '';
     return [plat, cat].filter(Boolean).join(' > ');
   }
 
-  return { LIST, CHECKED_AT, mains, subs, otherLabel, feeFor, label, shortLabel, categoryText, path };
+  return { LIST, CHECKED_AT, mains, subs, otherLabel, feeFor, label, shortLabel, platformText, categoryText, path };
 })();
