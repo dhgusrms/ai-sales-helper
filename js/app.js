@@ -543,7 +543,7 @@
     const list = main ? Platforms.subs(id, main) : [];
     const sel = form.elements.catSub;
     $('#catSubField').hidden = !main || !list.length;
-    const opt = s => `<option value="${esc(s.value)}"${s.value === selected ? ' selected' : ''}>${esc(s.name)}${s.rate != null && Platforms.LIST[id].verified ? ` (${s.rate}%)` : ''}</option>`;
+    const opt = s => `<option value="${esc(s.value)}"${s.value === selected ? ' selected' : ''}>${esc(s.name)}${s.rate != null && Platforms.LIST[id].verified && Platforms.LIST[id].flat == null ? ` (${s.rate}%)` : ''}</option>`;
     const groups = new Map();
     for (const s of list) {
       if (!groups.has(s.group)) groups.set(s.group, []);
