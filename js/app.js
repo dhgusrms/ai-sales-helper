@@ -699,10 +699,9 @@
   form.addEventListener('input', liveCalc);
   // 목표 마진율 목록: 맨 위 '직접 입력' + 5% ~ 50%, 5% 단위 (기본 30%).
   // 마진율은 순이익 기준이라 50%를 넘으면 권장가가 비현실적으로 높아진다. 더 높은 값은 직접 입력으로.
-  const MARGIN_TAG = { 15: ' (판매 추천 기준)', 30: ' (기본)' }; // 15%: 판정에서 '판매 추천'에 필요한 최소 마진
   form.elements.targetMargin.innerHTML = '<option value="custom">직접 입력</option>'
     + Array.from({ length: 10 }, (_, i) => (i + 1) * 5)
-      .map(v => `<option value="${v}"${v === 30 ? ' selected' : ''}>${v}%${MARGIN_TAG[v] || ''}</option>`).join('');
+      .map(v => `<option value="${v}"${v === 30 ? ' selected' : ''}>${v}%</option>`).join('');
   // '직접 입력'을 고르면 아래에 입력 칸을 보여 주고, 목록 값으로 돌아가면 숨긴다
   function updateMarginUI() {
     const custom = form.elements.targetMargin.value === 'custom';
