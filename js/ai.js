@@ -942,6 +942,19 @@ ${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함�
     return { ...out, model, withPhotos: images.length };
   }
 
+  // 짧은 AI 확인(KC 인증 맞춤, 제품 설명)이 잠깐의 오류로 실패하면 자동으로 다시 시도한다.
+  // 네트워크·서버 오류, 응답 형식 오류일 때만 다시 시도하고, 취소·키 오류·사용량 초과 등은 바로 끝낸다.
+  const RETRY_CODES = new Set(['network', 'server', 'api', 'parse', 'truncated']);
+  const RETRY_WAITS = [1000, 2500]; // 1초 뒤, 2.5초 뒤 (처음 포함 최대 3번)
+  async function withRetry(run, signal) {
+    for (let i = 0; ; i++) {
+      try { return await run(); } catch (ex) {
+        if (signal?.aborted || i >= RETRY_WAITS.length || !RETRY_CODES.has(ex?.code)) throw ex;
+        await new Promise(r => setTimeout(r, RETRY_WAITS[i]));
+      }
+    }
+  }
+
   // KC 인증번호로 조회한 제품(인증받은 제품)과 판매하려는 상품이 같은 종류인지 판단한다
   const KC_MATCH_SYSTEM = `당신은 한국 제품안전(KC 인증) 확인을 돕는 도우미입니다.
 판매자가 입력한 KC 인증번호를 제품안전정보센터에서 조회한 결과(인증받은 제품)와, 판매자가 팔려는 상품이 같은 종류(품목)의 제품인지 판단합니다.
@@ -970,7 +983,7 @@ ${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함�
 제품 설명: ${String(product.description || '').slice(0, 400) || '입력 안 함'}
 
 두 제품이 같은 종류(품목)인지 판단해 주세요.`;
-    const { parsed } = await request(KC_MATCH_SYSTEM, text, KC_MATCH_SCHEMA, signal);
+    const { parsed } = await withRetry(() => request(KC_MATCH_SYSTEM, text, KC_MATCH_SCHEMA, signal), signal);
     const verdict = ['same', 'different', 'unsure'].includes(parsed?.verdict) ? parsed.verdict : 'unsure';
     const reason = typeof parsed?.reason === 'string' ? parsed.reason.replace(/\s+/g, ' ').trim() : '';
     return { verdict, reason };
@@ -1004,7 +1017,7 @@ ${images.length ? `판매자가 지금 올린 사진 ${images.length}장을 함�
 ${String(product.description || '').slice(0, 1500)}
 
 이 제품 설명이 이 상품에 대한 설명인지 판단해 주세요.`;
-    const { parsed } = await request(DESC_SYSTEM, text, DESC_SCHEMA, signal);
+    const { parsed } = await withRetry(() => request(DESC_SYSTEM, text, DESC_SCHEMA, signal), signal);
     const verdict = ['ok', 'partly', 'unrelated'].includes(parsed?.verdict) ? parsed.verdict : 'ok';
     const clean = s => (typeof s === 'string' ? s.replace(/\s+/g, ' ').trim() : '');
     const offtopic = (Array.isArray(parsed?.offtopic) ? parsed.offtopic : []).map(clean).filter(Boolean).slice(0, 3);
