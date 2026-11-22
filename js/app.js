@@ -75,7 +75,7 @@
       packaging: parseNum(f.get('packaging')),
       feeRate: parseNum(f.get('feeRate')),
       platform,
-      targetMargin: f.get('targetMargin') === '' ? 30 : parseNum(f.get('targetMargin')),
+      targetMargin: Number(f.get('targetMargin')) || 30, // 목록에서 고른 값 (기본 30%)
       photos,
       docs,
       competitors,
@@ -368,7 +368,6 @@
     if (p.price < MIN_PRICE) err('price', `판매가는 ${MIN_PRICE.toLocaleString('ko-KR')}원 이상이어야 해요.`);
     if (p.platform === 'custom' && !p.feeEntered) err('feeRate', '수수료를 입력해 주세요. 수수료가 없으면 0을 입력해 주세요.');
     else if (p.feeRate >= 100) err('feeRate', '수수료는 100% 미만이어야 해요.');
-    if (p.targetMargin >= 100) err('targetMargin', '목표 마진율은 100% 미만이어야 해요.');
 
     SIZE_SHAPES[p.sizeShape].forEach((label, i) => {
       const k = SIZE_KEYS[i];
@@ -649,6 +648,10 @@
   fillMains();
 
   form.addEventListener('input', liveCalc);
+  // 목표 마진율 목록: 1% ~ 90%, 1% 단위 (기본 30%)
+  form.elements.targetMargin.innerHTML = Array.from({ length: 90 }, (_, i) => i + 1)
+    .map(v => `<option value="${v}"${v === 30 ? ' selected' : ''}>${v}%</option>`).join('');
+  form.elements.targetMargin.addEventListener('change', liveCalc);
 
   function clearForm() {
     form.reset();
