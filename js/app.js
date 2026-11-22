@@ -436,6 +436,7 @@
       if (r.profit < 0) warnings.push(`이 가격이면 1개 팔 때마다 ${won(-r.profit)} 손해예요. 판매가와 비용을 확인해 주세요.`);
       if (p.shipping > p.price) warnings.push('배송비가 판매가보다 커요.');
       if (p.packaging > p.price) warnings.push('포장비가 판매가보다 커요.');
+      if (p.targetMargin + p.feeRate >= 100) warnings.push(`목표 마진율(${p.targetMargin}%)과 수수료(${p.feeRate}%)를 합치면 100%가 넘어 권장가를 계산할 수 없어요. 그대로 분석할까요?`);
       if (p.platform === 'custom' && p.feeRate === 0) warnings.push('수수료가 0%예요. 판매처 수수료가 정말 없나요?');
       const dc = currentDescCheck();
       if (dc?.verdict === 'partly') warnings.push(`제품 설명에 상품과 관련 없는 내용이 섞여 있어요${dc.offtopic.length ? ` (${dc.offtopic.map(s => `“${s}”`).join(', ')})` : ''}. 빼고 쓰면 분석이 더 정확해져요.`);
@@ -508,6 +509,12 @@
   function liveCalc() {
     const p = readForm();
     renderSummary(p);
+    // 목표 마진율과 수수료를 합쳐 100% 이상이면 어떤 가격으로도 그 마진이 안 나와 권장가를 계산할 수 없다
+    const mh = $('#marginHint'); // 예전 화면 파일이 캐시에 남아 있어도 계산이 멈추지 않게 없으면 건너뛴다
+    if (mh) {
+      mh.hidden = !(p.targetMargin > 0 && p.targetMargin < 100 && p.targetMargin + p.feeRate >= 100);
+      mh.textContent = `목표 마진율(${p.targetMargin}%)과 수수료(${p.feeRate}%)를 합치면 100%가 넘어 권장가를 계산할 수 없어요. 목표 마진율을 낮춰 주세요.`;
+    }
     const box = $('#liveCalc');
     if (p.price <= 0 || !p.costEntered) { box.innerHTML = ''; return; }
     const r = Profit.calc(p);
@@ -536,7 +543,7 @@
         <div class="sum-row"><span>예상 순이익</span><b class="${r.profit < 0 ? 'neg' : ''}">${won(r.profit)}</b></div>
         <div class="sum-row"><span>예상 마진율</span><b class="${r.margin < 0 ? 'neg' : ''}">${pct(r.margin)}</b></div>
         <div class="sum-row"><span>수수료</span><b>${won(r.fee)}</b></div>
-        <div class="sum-row"><span>목표 마진 ${esc(p.targetMargin)}% 권장가</span><b>${rec ? won(rec) : '계산 불가'}</b></div>`;
+        <div class="sum-row"><span>목표 마진 ${esc(p.targetMargin)}% 권장가</span><b>${rec ? won(rec) : '계산 불가'}</b></div>${rec ? '' : '<p class="muted small">목표 마진율과 수수료를 합쳐 100%가 넘어요.</p>'}`;
     } else {
       $('#sumProfit').innerHTML = '<p class="muted small">원가와 판매가격을 넣으면 예상 순이익이 바로 계산됩니다.</p>';
     }
@@ -690,10 +697,12 @@
   fillMains();
 
   form.addEventListener('input', liveCalc);
-  // 목표 마진율 목록: 5% ~ 90%, 5% 단위 (기본 30%) + 맨 아래 '직접 입력'
-  form.elements.targetMargin.innerHTML = Array.from({ length: 18 }, (_, i) => (i + 1) * 5)
-    .map(v => `<option value="${v}"${v === 30 ? ' selected' : ''}>${v}%</option>`).join('')
-    + '<option value="custom">직접 입력</option>';
+  // 목표 마진율 목록: 맨 위 '직접 입력' + 5% ~ 50%, 5% 단위 (기본 30%).
+  // 마진율은 순이익 기준이라 50%를 넘으면 권장가가 비현실적으로 높아진다. 더 높은 값은 직접 입력으로.
+  const MARGIN_TAG = { 15: ' (판매 추천 기준)', 30: ' (기본)' }; // 15%: 판정에서 '판매 추천'에 필요한 최소 마진
+  form.elements.targetMargin.innerHTML = '<option value="custom">직접 입력</option>'
+    + Array.from({ length: 10 }, (_, i) => (i + 1) * 5)
+      .map(v => `<option value="${v}"${v === 30 ? ' selected' : ''}>${v}%${MARGIN_TAG[v] || ''}</option>`).join('');
   // '직접 입력'을 고르면 아래에 입력 칸을 보여 주고, 목록 값으로 돌아가면 숨긴다
   function updateMarginUI() {
     const custom = form.elements.targetMargin.value === 'custom';
@@ -1166,7 +1175,7 @@
         <div class="kpi"><div class="k">예상 순이익</div><div class="v ${r.profit < 0 ? 'neg' : 'pos'}">${won(r.profit)}</div></div>
         <div class="kpi"><div class="k">예상 마진율</div><div class="v ${r.margin < 0 ? 'neg' : ''}">${pct(r.margin)}</div></div>
         <div class="kpi"><div class="k">손익분기 판매가</div><div class="v">${be ? won(be) : '계산 불가'}</div></div>
-        <div class="kpi"><div class="k">목표 마진 ${p.targetMargin}% 권장가</div><div class="v">${rec ? won(rec) : '계산 불가'}</div></div>
+        <div class="kpi"><div class="k">목표 마진 ${p.targetMargin}% 권장가</div><div class="v">${rec ? won(rec) : '계산 불가'}</div>${rec ? '' : '<div class="k">마진율과 수수료 합이 100% 이상</div>'}</div>
       </div>
 
       <div class="two-col">

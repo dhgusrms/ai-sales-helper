@@ -311,9 +311,10 @@
             </label>
             <div class="field">
               <span class="label">목표 마진율</span>
-              <!-- 5% 단위 목록 (기본 30%) + 맨 아래 '직접 입력'. 옵션은 js/app.js가 채운다 -->
+              <!-- 맨 위 '직접 입력' + 5~50%, 5% 단위 목록 (기본 30%). 옵션은 js/app.js가 채운다 -->
               <select name="targetMargin" id="targetMargin" aria-label="목표 마진율"><option value="30" selected>30%</option></select>
               <span class="input-unit" id="marginCustom" hidden><input type="text" inputmode="decimal" name="targetMarginCustom" data-num placeholder="예) 33" maxlength="5" aria-label="목표 마진율 직접 입력"><span class="unit">%</span></span>
+              <p class="margin-hint" id="marginHint" hidden></p>
             </div>
             <label class="field">
               <span class="label">배송비 <small class="muted">(판매자 부담분)</small></span>
