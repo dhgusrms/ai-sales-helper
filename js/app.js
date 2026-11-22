@@ -27,7 +27,9 @@
   const VERDICT_CLASS = { good: 'v-good', warn: 'v-warn', bad: 'v-bad' };
 
   /* ---------- 화면 전환 ---------- */
-  function go(view) {
+  // 화면을 바꿀 때마다 브라우저 기록에 남겨 '뒤로 가기'로 앞 화면에 돌아갈 수 있게 한다
+  function go(view, fromHistory = false) {
+    if (!fromHistory && history.state?.view !== view) history.pushState({ view }, '');
     for (const v of ['home', 'input', 'result', 'saved', 'compare', 'detail']) $(`#view-${v}`).hidden = v !== view;
     document.body.classList.toggle('on-home', view === 'home'); // 시작 화면에서는 단계 대신 '무료로 시작하기' 버튼
     const step = { compare: 'saved', detail: 'result' }[view] || view;
@@ -35,6 +37,12 @@
     if (view === 'saved') renderSaved();
     window.scrollTo(0, 0);
   }
+  history.replaceState({ view: 'home' }, '');
+  window.addEventListener('popstate', e => {
+    let view = e.state?.view || 'home';
+    if ((view === 'result' || view === 'detail') && !current) view = 'input'; // 보던 분석이 지워졌으면 입력 화면으로
+    go(view, true);
+  });
   document.addEventListener('click', e => {
     const t = e.target.closest('[data-go]');
     if (!t || t.disabled) return;
