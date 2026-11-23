@@ -935,6 +935,13 @@
   $('#jobClose').addEventListener('click', () => { $('#loading').hidden = true; jobOpenAction = null; });
   const isBusy = () => !!loadingCtrl;
   const ANALYZE_TIPS = ['상품의 주요 특징과 장단점', '타깃 고객층과 시장성', '차별화 요소와 판매 위험요소', '종합 점수와 판정 근거'];
+  // 홍보문구 종류: 예전에 저장된 '한 줄 카피'도 알아보기 쉬운 이름으로 보여 준다
+  const promoLabel = ch => (ch === '한 줄 카피' ? '짧은 광고 문구' : ch);
+  const PROMO_HINT = {
+    '인스타그램 게시글': 'SNS에 올리는 글',
+    '검색광고 문구': '네이버·쿠팡 검색광고에 쓰는 제목 / 설명',
+    '짧은 광고 문구': '대표 사진 위나 상세페이지 맨 위 제목에 쓰는 한 문장',
+  };
   const CONTENT_TIPS = ['상품명 후보', '검색 키워드', '상세페이지 구성안', '홍보문구'];
   const DETAIL_TIPS = ['상품에 맞는 섹션 고르기', '섹션 순서와 제목 정하기', '핵심 장점 자세히 쓰기', '자주 묻는 질문과 관리 방법'];
   $('#cancelLoading').addEventListener('click', () => {
@@ -1376,7 +1383,7 @@
       ${contentBox('상세페이지 구성안 (위에서 아래 순서)', `<ol class="detail-list">${c.detail_page.map((x, i) => `<li><b>${esc(x.section)}</b>${x.title ? ` <span class="muted">· 제목: ${esc(x.title)}</span>` : ''}
           <div>${ed(`content.detail_page.${i}.content`, x.content)}</div>
           <div class="sub">근거: ${ed(`content.detail_page.${i}.evidence`, x.evidence)}</div></li>`).join('')}</ol>`)}
-      ${contentBox('홍보문구', `<ul class="list-plain">${c.promo_copies.map((x, i) => `<li><span class="pill">${esc(x.channel)}</span>
+      ${contentBox('홍보문구', `<ul class="list-plain">${c.promo_copies.map((x, i) => `<li><span class="pill">${esc(promoLabel(x.channel))}</span>${PROMO_HINT[promoLabel(x.channel)] ? ` <span class="muted small">${PROMO_HINT[promoLabel(x.channel)]}</span>` : ''}
           <div class="promo">${ed(`content.promo_copies.${i}.text`, x.text)}</div></li>`).join('')}</ul>`)}
       </div>
       <p class="disclaimer">AI가 만든 <b>초안</b>입니다. 상품의 사실과 다르거나 과장된 표현이 없는지 확인한 뒤 사용해 주세요. 각 항목의 <b>수정</b> 버튼으로 고칠 수 있습니다. (모델: ${esc(c.model)})</p>
