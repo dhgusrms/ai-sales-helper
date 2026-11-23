@@ -799,3 +799,13 @@ details.more > .disclaimer { margin-top: 8px; }
   .dp-toc .dp-flow { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
   .dp-toc .dp-flow button { background: var(--subtle, #f3f4f6); }
 }
+
+/* '구성' 끌어서 순서 바꾸기 */
+.dp-toc { user-select: none; -webkit-user-select: none; }
+.dp-toc .dp-flow button { cursor: grab; }
+.dp-toc .dp-flow .t { flex: 1; min-width: 0; }
+.dp-toc .grip { flex: none; color: #b0b5bd; font-size: 13px; letter-spacing: -2px; padding: 2px 4px; touch-action: none; }
+.dp-toc .dp-flow button:hover .grip { color: var(--text); }
+.dp-toc.sorting, .dp-toc.sorting .dp-flow button { cursor: grabbing; }
+.dp-toc .dp-flow li.dragging button { background: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.14); outline: 2px solid var(--accent); }
+.dp-toc .dp-flow li.just-moved button { background: #e8f5ee; transition: background .3s; }

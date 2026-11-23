@@ -1476,9 +1476,56 @@
     }
   }
 
+  // '구성' 순서 바꾸기: 누른 채로 끌어서 놓으면 그 순서로 바뀐다. 짧게 누르면(끌지 않으면) 그 위치로 이동한다.
+  // 마우스는 항목 어디든, 터치는 오른쪽 손잡이(⋮⋮)를 끌어야 한다 (화면 스크롤과 겹치지 않게).
+  let tocDrag = null;
+  let tocDragEnd = 0;
+  $('#dpToc').addEventListener('pointerdown', e => {
+    const b = e.target.closest('[data-jump]');
+    if (!b || e.button !== 0) return;
+    if (e.pointerType !== 'mouse' && !e.target.closest('.grip')) return;
+    tocDrag = { from: Number(b.dataset.jump), x0: e.clientX, y0: e.clientY, li: b.parentElement, moved: false };
+  });
+  document.addEventListener('pointermove', e => {
+    if (!tocDrag) return;
+    if (!tocDrag.moved) {
+      if (Math.hypot(e.clientX - tocDrag.x0, e.clientY - tocDrag.y0) < 6) return;
+      tocDrag.moved = true;
+      tocDrag.li.classList.add('dragging');
+      $('#dpToc').classList.add('sorting');
+    }
+    e.preventDefault();
+    // 손가락·마우스 아래에 있는 항목 자리로 옮긴다 (세로 목록·여러 칸 모두 동작)
+    const over = document.elementFromPoint(e.clientX, e.clientY)?.closest('#dpToc .dp-flow > li');
+    if (!over || over === tocDrag.li) return;
+    const list = over.parentElement;
+    const items = [...list.children];
+    list.insertBefore(tocDrag.li, items.indexOf(tocDrag.li) < items.indexOf(over) ? over.nextSibling : over);
+  }, { passive: false });
+  const endTocDrag = () => {
+    if (!tocDrag) return;
+    const d = tocDrag;
+    tocDrag = null;
+    if (!d.moved) return; // 끌지 않았으면 click으로 이동 처리
+    tocDragEnd = Date.now();
+    $('#dpToc').classList.remove('sorting');
+    const m = current.ai.detailPage;
+    const order = [...$('#dpToc .dp-flow').children].map(li => Number(li.querySelector('[data-jump]').dataset.jump));
+    if (order.every((v, i) => v === i)) { renderDetailPanel(); return; }
+    m.sections = order.map(i => m.sections[i]);
+    current.saved = Store.save(current);
+    renderDetailPanel();
+    renderDetailPreview();
+    const moved = $(`#dpToc [data-jump="${order.indexOf(d.from)}"]`)?.parentElement;
+    moved?.classList.add('just-moved');
+    setTimeout(() => moved?.classList.remove('just-moved'), 900);
+  };
+  document.addEventListener('pointerup', endTocDrag);
+  document.addEventListener('pointercancel', endTocDrag);
+
   $('#dpToc').addEventListener('click', e => {
     const b = e.target.closest('[data-jump]');
-    if (!b) return;
+    if (!b || Date.now() - tocDragEnd < 400) return;
     const sec = current.ai.detailPage.sections[Number(b.dataset.jump)];
     const el = sec && $(sec.kind === 'closing' ? '#dpPreview .dp-closing' : `#dpPreview .dp-k-${sec.kind}`);
     el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -1486,11 +1533,10 @@
 
   function renderDetailPanel() {
     const m = current.ai.detailPage;
-    // 섹션 순서를 번호 목록으로 보여 주고, 누르면 미리보기의 그 섹션으로 이동한다
-    // 섹션 순서는 미리보기 왼쪽 '구성' 상자에 번호 목록으로 (누르면 그 위치로 이동)
+    // 섹션 순서는 미리보기 왼쪽 '구성' 상자에 번호 목록으로 (누르면 그 위치로 이동, 끌면 순서 변경)
     $('#dpToc').innerHTML = `<p class="dp-ai-sum">위에서부터 <b>${m.sections.length}개 섹션</b></p>
-      <ol class="dp-flow">${m.sections.map((x, i) => `<li><button type="button" data-jump="${i}"><span class="n">${i + 1}</span>${esc(DetailPage.KIND_LABELS[x.kind] || x.kind)}</button></li>`).join('')}</ol>
-      <p class="dp-flow-hint">누르면 그 위치로 이동해요</p>`;
+      <ol class="dp-flow">${m.sections.map((x, i) => `<li><button type="button" data-jump="${i}"><span class="n">${i + 1}</span><span class="t">${esc(DetailPage.KIND_LABELS[x.kind] || x.kind)}</span><span class="grip" aria-hidden="true">⋮⋮</span></button></li>`).join('')}</ol>
+      <p class="dp-flow-hint">누르면 그 위치로 이동해요<br>끌어서 놓으면 순서가 바뀌어요</p>`;
     $('#dpAiInfo').innerHTML = m.request ? `<div class="dp-last-req"><span>마지막으로 반영한 요청</span><p>${esc(m.request)}</p></div>` : '';
     renderColorPicker(m.theme);
     const rec = DetailPage.SLOT_LABELS.map(label => m.shots?.shots.find(x => x.slot === label));
