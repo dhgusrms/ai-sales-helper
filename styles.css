@@ -761,3 +761,8 @@ details.more > summary::before { content: "›"; display: inline-block; font-siz
 details.more[open] > summary::before { transform: rotate(90deg); }
 details.more > summary:hover { color: var(--text); }
 details.more > .disclaimer { margin-top: 8px; }
+
+/* 판매 콘텐츠 초안: '콘텐츠 보기'로 왔을 때 제목이 위 메뉴에 가리지 않게, 맨 아래에 다음 단계(상세페이지 만들기) */
+#contentCard { scroll-margin-top: 92px; }
+.content-next { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.content-next p { font-weight: 600; }

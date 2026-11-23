@@ -1366,8 +1366,7 @@
     const notes = `<div class="note small content-note" ${c.notices.length ? '' : 'hidden'}>${c.notices.map(esc).join('<br>')}</div>`;
     return `<div class="card" id="contentCard">
       <div class="box-head"><h2>판매 콘텐츠 초안</h2>
-        <div class="head-actions"><button class="btn-outline" data-action="content">다시 만들기</button>
-        <button class="btn-primary" data-action="detail">상세페이지 만들기</button></div></div>
+        <div class="head-actions"><button class="btn-outline" data-action="content">다시 만들기</button></div></div>
       ${notes}
       <div class="boxes">
       ${contentBox('상품명 후보', `<ul class="list-plain">${c.product_names.map((x, i) => `<li><b>${ed(`content.product_names.${i}.name`, x.name)}</b>
@@ -1381,6 +1380,10 @@
           <div class="promo">${ed(`content.promo_copies.${i}.text`, x.text)}</div></li>`).join('')}</ul>`)}
       </div>
       <p class="disclaimer">AI가 만든 <b>초안</b>입니다. 상품의 사실과 다르거나 과장된 표현이 없는지 확인한 뒤 사용해 주세요. 각 항목의 <b>수정</b> 버튼으로 고칠 수 있습니다. (모델: ${esc(c.model)})</p>
+      <div class="content-next">
+        <p>초안을 확인했다면, 이 내용으로 상세페이지를 만들어 보세요.</p>
+        <button class="btn-primary" data-action="detail">상세페이지 만들기</button>
+      </div>
     </div>`;
   }
 
@@ -1393,7 +1396,10 @@
     const product = { ...rec.product, photos: [], docs: [] };
     $('#loadingText').textContent = 'AI가 판매 콘텐츠를 만들고 있습니다';
     const signal = startLoading({ tips: CONTENT_TIPS });
-    const openContent = () => { showRecord(rec); $('#contentCard')?.scrollIntoView({ block: 'start' }); };
+    const openContent = () => {
+      showRecord(rec);
+      setTimeout(() => $('#contentCard')?.scrollIntoView({ block: 'start' }), 50); // 화면이 다 그려진 뒤 이동
+    };
     try {
       rec.ai.content = await AI.generateContent(product, rec.profit, rec.ai, signal);
       delete rec.ai.detailPage; // 새 콘텐츠로 상세페이지를 다시 만든다
