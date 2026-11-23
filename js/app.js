@@ -1476,10 +1476,21 @@
     }
   }
 
+  $('#dpAiInfo').addEventListener('click', e => {
+    const b = e.target.closest('[data-jump]');
+    if (!b) return;
+    const sec = current.ai.detailPage.sections[Number(b.dataset.jump)];
+    const el = sec && $(sec.kind === 'closing' ? '#dpPreview .dp-closing' : `#dpPreview .dp-k-${sec.kind}`);
+    el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+
   function renderDetailPanel() {
     const m = current.ai.detailPage;
-    $('#dpAiInfo').innerHTML = `AI가 이 상품에 맞춰 <b>${m.sections.length}개 섹션</b>으로 짰어요: ${m.sections.map(x => esc(DetailPage.KIND_LABELS[x.kind] || x.kind)).join(' → ')}`
-      + (m.request ? `<br>반영한 요청: “${esc(m.request)}”` : '');
+    // 섹션 순서를 번호 목록으로 보여 주고, 누르면 미리보기의 그 섹션으로 이동한다
+    $('#dpAiInfo').innerHTML = `<p class="dp-ai-sum">위에서부터 <b>${m.sections.length}개 섹션</b>으로 구성했어요</p>
+      <ol class="dp-flow">${m.sections.map((x, i) => `<li><button type="button" data-jump="${i}"><span class="n">${i + 1}</span>${esc(DetailPage.KIND_LABELS[x.kind] || x.kind)}</button></li>`).join('')}</ol>
+      <p class="dp-flow-hint">누르면 미리보기에서 그 위치로 이동해요</p>`
+      + (m.request ? `<div class="dp-last-req"><span>마지막으로 반영한 요청</span><p>${esc(m.request)}</p></div>` : '');
     renderColorPicker(m.theme);
     const rec = DetailPage.SLOT_LABELS.map(label => m.shots?.shots.find(x => x.slot === label));
     $('#dpSlots').innerHTML = DetailPage.SLOT_LABELS.map((label, i) => {

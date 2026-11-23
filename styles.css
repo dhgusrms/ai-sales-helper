@@ -766,3 +766,18 @@ details.more > .disclaimer { margin-top: 8px; }
 #contentCard { scroll-margin-top: 92px; }
 .content-next { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
 .content-next p { font-weight: 600; }
+
+/* 상세페이지 'AI 구성': 섹션 순서를 번호 목록으로 */
+#dpAiInfo { margin: 0 0 16px; }
+.dp-ai-sum { margin: 0 0 10px; font-size: 17px; color: var(--muted); }
+.dp-ai-sum b { color: var(--text); }
+.dp-flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.dp-flow button { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 0; border-radius: 10px; background: var(--subtle, #f3f4f6); font: inherit; font-size: 17px; font-weight: 600; color: var(--text); text-align: left; cursor: pointer; }
+.dp-flow button:hover { background: #e8f5ee; }
+.dp-flow li { margin: 0; padding: 0; }
+.dp-flow .n { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--text); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.dp-flow-hint { margin: 8px 0 0; font-size: 15px; color: var(--muted); }
+.dp-last-req { margin-top: 14px; padding: 12px 14px; border-left: 3px solid var(--accent); background: #f3faf6; border-radius: 0 10px 10px 0; }
+.dp-last-req span { display: block; font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.dp-last-req p { margin: 0; font-size: 17px; color: var(--text); word-break: keep-all; }
+#dpPreview .dp-sec { scroll-margin-top: 84px; }
