@@ -599,7 +599,7 @@ body.on-home { background: #fff; } /* 시작 화면은 흰 바탕 */
 .home-pill { display: inline-flex; gap: 8px; align-items: center; font-size: 16px; color: #444; background: #f1f2f4; padding: 7px 16px; border-radius: 99px; }
 .home-pill b { color: var(--accent); }
 .home-kicker { margin-top: 28px; font-size: 26px; color: #333; }
-.home-title { margin-top: 8px; font-size: 60px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.2; }
+.home-title { margin-top: 28px; font-size: 60px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.2; }
 .home-sub { margin: 22px auto 0; max-width: 640px; font-size: 19px; color: var(--muted); }
 .home-hero .btn-cta { margin-top: 34px; }
 .home-note { margin-top: 14px; font-size: 15px; color: #9ca3af; }
