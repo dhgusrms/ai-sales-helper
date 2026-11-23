@@ -1431,7 +1431,9 @@
       detailPhotosFor = rec.id;
     }
   }
+  let dpRequestFor = null;
   function showDetail() {
+    if (dpRequestFor !== current.id) { $('#dpRequest').value = ''; dpRequestFor = current.id; }
     renderDetailPanel();
     renderShots();
     renderDetailPreview();
@@ -1462,6 +1464,7 @@
       const out = await AI.generateDetailPage(product, rec.profit, rec.ai, urls, signal, { request, previous: rec.ai.detailPage });
       rec.ai.detailPage = DetailPage.fromAI(out, rec.product);
       rec.saved = Store.save(rec);
+      if (current === rec) $('#dpRequest').value = ''; // 반영한 요청은 입력칸에서 지운다 (안내 문구 '반영한 요청'에 남음)
       if (stayed()) { stopLoading(); open(); return; }
       finishLoading(`'${rec.product.name}' 상세페이지를 만들었어요`, { openLabel: '상세페이지 보기', onOpen: open });
     } catch (ex) {
@@ -1477,7 +1480,6 @@
     const m = current.ai.detailPage;
     $('#dpAiInfo').innerHTML = `AI가 이 상품에 맞춰 <b>${m.sections.length}개 섹션</b>으로 짰어요: ${m.sections.map(x => esc(DetailPage.KIND_LABELS[x.kind] || x.kind)).join(' → ')}`
       + (m.request ? `<br>반영한 요청: “${esc(m.request)}”` : '');
-    $('#dpRequest').value = m.request || '';
     renderColorPicker(m.theme);
     const rec = DetailPage.SLOT_LABELS.map(label => m.shots?.shots.find(x => x.slot === label));
     $('#dpSlots').innerHTML = DetailPage.SLOT_LABELS.map((label, i) => {

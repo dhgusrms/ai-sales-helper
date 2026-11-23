@@ -782,6 +782,26 @@ ${lines('상품명 후보', (c.product_names || []).map(x => x.name))}${lines('�
       ...m.sections.map(x => `[${x.kind}] ${x.title}${x.lead ? ` - ${x.lead}` : ''}${x.items.length ? `\n${x.items.map(i => `  - ${[i.title, i.text].filter(Boolean).join(': ')}`).join('\n')}` : ''}`)].join('\n');
   }
 
+  // 분량 요청('더 길게', '짧게' 등): 시스템 규칙의 문장 수·항목 수는 기본값이라 AI가 그대로 따르기 쉽다.
+  // 요청에 분량 말이 있으면 구체적인 숫자로 다시 알려 준다.
+  function lengthRule(request) {
+    const longer = /(길게|긴 ?분량|분량.{0,6}(늘|많|길)|자세히|자세하게|풍성|더 많이|늘려)/.test(request);
+    const shorter = /(짧게|간단히|간결|줄여|분량.{0,6}(줄|적))/.test(request);
+    if (longer && !shorter) {
+      return `
+[분량 요청] 판매자가 더 긴 분량을 원합니다. 위 [섹션 종류]의 문장 수·항목 수는 이번에는 적용하지 않습니다.
+- 섹션은 8~9개로 늘립니다.
+- 각 섹션의 items는 가능한 최대 개수(4~5개)로 채웁니다.
+- 각 항목의 text는 3~4문장으로, 지금 상세페이지보다 눈에 띄게 길게 씁니다. 같은 말을 반복하지 말고 사용 장면·이득·근거를 구체적으로 풀어 씁니다.
+- 각 섹션의 lead와 첫 화면 subcopy도 2문장으로 씁니다.`;
+    }
+    if (shorter && !longer) {
+      return `
+[분량 요청] 판매자가 더 짧은 분량을 원합니다. 섹션은 5~6개, 각 섹션 items는 2~3개, 각 항목 text는 1문장으로 줄입니다.`;
+    }
+    return '';
+  }
+
   // options.request: 판매자가 쓴 요청(추가·제거·강조), options.previous: 지금 상세페이지
   async function generateDetailPage(product, profit, ai, photoUrls, signal, options = {}) {
     const p = getProvider();
@@ -802,7 +822,7 @@ ${lines('상품명 후보', (c.product_names || []).map(x => x.name))}${lines('�
 ${request}
 
 판매자 요청을 반드시 반영해 다시 설계하세요. 빼 달라는 것은 빼고, 넣어 달라는 것은 넣고, 강조해 달라는 것은 첫 화면이나 앞쪽 섹션에서 크게 다룹니다.
-요청이 섹션 수·종류 규칙과 부딪치면 요청을 따릅니다. 요청에 없는 부분은 지금 상세페이지의 좋은 점을 살립니다.
+요청이 섹션 수·종류 규칙과 부딪치면 요청을 따릅니다. 요청에 없는 부분은 지금 상세페이지의 좋은 점을 살립니다.${lengthRule(request)}
 단, 사실 규칙은 요청보다 우선합니다. 입력 정보에 없는 수치·효과·인증·후기를 요청 때문에 지어내지 말고, 필요하면 [확인 필요]를 붙이세요.`;
     }
     const { parsed, model } = p === 'qwen' ? await requestQwen(system, text, DETAIL_SCHEMA, signal)
