@@ -829,3 +829,7 @@ details.more > .disclaimer { margin-top: 8px; }
 /* 위쪽 박스 줄 높이 줄이기: 촬영 팁 글자·줄 간격을 조금 촘촘하게 */
 .dp-stack .dp-tips ul { font-size: 16px; line-height: 1.5; }
 .dp-stack .dp-tips li { margin: 0 0 2px; }
+
+/* '구성' 제목 옆 섹션 수 */
+.dp-toc h3 { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.dp-toc-count { font-size: 15px; font-weight: 600; color: var(--muted); }

@@ -1534,8 +1534,8 @@
   function renderDetailPanel() {
     const m = current.ai.detailPage;
     // 섹션 순서는 미리보기 왼쪽 '구성' 상자에 번호 목록으로 (누르면 그 위치로 이동, 끌면 순서 변경)
-    $('#dpToc').innerHTML = `<p class="dp-ai-sum">위에서부터 <b>${m.sections.length}개 섹션</b></p>
-      <ol class="dp-flow">${m.sections.map((x, i) => `<li><button type="button" data-jump="${i}"><span class="n">${i + 1}</span><span class="t">${esc(DetailPage.KIND_LABELS[x.kind] || x.kind)}</span><span class="grip" aria-hidden="true">⋮⋮</span></button></li>`).join('')}</ol>
+    $('#dpTocCount').textContent = `${m.sections.length}개 섹션`;
+    $('#dpToc').innerHTML = `<ol class="dp-flow">${m.sections.map((x, i) => `<li><button type="button" data-jump="${i}"><span class="n">${i + 1}</span><span class="t">${esc(DetailPage.KIND_LABELS[x.kind] || x.kind)}</span><span class="grip" aria-hidden="true">⋮⋮</span></button></li>`).join('')}</ol>
       <p class="dp-flow-hint">누르면 그 위치로 이동해요<br>끌어서 놓으면 순서가 바뀌어요</p>`;
     $('#dpAiInfo').innerHTML = m.request ? `<div class="dp-last-req"><span>마지막으로 반영한 요청</span><p>${esc(m.request)}</p></div>` : '';
     renderColorPicker(m.theme);
